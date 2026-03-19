@@ -538,6 +538,10 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   </div>
   <div id="lobby-wait" style="display:none;text-align:center;">
     <div class="waiting-txt" id="wait-msg">Waiting…</div>
+    <div id="pvp-start-wrap" style="display:none;margin-top:18px;">
+      <div id="pvp-guest-info" style="color:var(--muted);font-size:.95rem;margin-bottom:12px;"></div>
+      <button class="btn btn-red" style="width:100%;max-width:260px;" onclick="startPvpBattle()">⚔️ Start Battle!</button>
+    </div>
     <br>
     <button class="btn btn-ghost btn-auto btn-sm" onclick="cancelWait()">Cancel</button>
   </div>
@@ -1310,7 +1314,7 @@ function buyUpg(id){
 // ═══════════════════════════════════════════════════════
 //  LOBBY + REAL-TIME PvP (MQTT — works across devices!)
 // ═══════════════════════════════════════════════════════
-let mqttClient=null,pvpRole=null,pvpLogShown=0;
+let mqttClient=null,pvpRole=null,pvpLogShown=0,pvpPendingGuest=null;
 const MQTT_URL='wss://broker.hivemq.com:8884/mqtt';
 
 function mqttSend(data){
@@ -1378,11 +1382,16 @@ function handlePvpMsg(data){
     launchPvpBattle('guest',gd,data.data);
   } else if(data.type==='guestData'){
     if(pvpRole!=='host')return;
+    pvpPendingGuest=data.data;
+    document.getElementById('pvp-guest-info').textContent=data.data.e+' '+data.data.name+' has joined!';
+    document.getElementById('pvp-start-wrap').style.display='block';
+    showWaiting('Opponent is ready! Press Start when you are!');
+  } else if(data.type==='start'){
+    if(pvpRole!=='guest')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-    const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    const gd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
-    mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
-    launchPvpBattle('host',hd,data.data);
+    launchPvpBattle('guest',gd,data.hostData);
   } else if(data.type==='move'){
     applyOpponentPvpMove(data);
   } else if(data.type==='leave'){
@@ -1390,6 +1399,18 @@ function handlePvpMsg(data){
     G.wins++;const pts=Math.floor(10+G.wins*3);G.points+=pts;saveGame();
     endBattle();showResult(true,pts,[]);
   }
+}
+
+function startPvpBattle(){
+  if(!pvpPendingGuest||pvpRole!=='host')return;
+  const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'start',hostData:hd}),{qos:1});
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
+  document.getElementById('pvp-start-wrap').style.display='none';
+  launchPvpBattle('host',hd,pvpPendingGuest);
+  pvpPendingGuest=null;
 }
 
 function launchPvpBattle(role,myData,oppData){
@@ -1537,25 +1558,38 @@ function cancelWait(){
 // ═══════════════════════════════════════════════════════
 function startBotBattle(){
   if(!G.hero){toast('Create a hero first!');return;}
+  const numBots=rnd(1,3);
+  const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
+  const bots=Array.from({length:numBots},(_,i)=>{
+    const idx=Math.min(bi+i,BOTS.length-1);
+    return{...BOTS[idx],patIdx:idx};
+  });
+  launchBotWave(bots,1,numBots,null);
+}
+
+function launchBotWave(botQueue,waveNum,totalWaves,prevPlayer){
+  if(!G.hero)return;
   const s=heroStats();
   const cls=CLASSES.find(c=>c.id===G.hero.classId);
-  const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
-  const bot={...BOTS[bi]};
   const isMorphClass=['druid','necromancer'].includes(G.hero.classId);
-  const startForm=isMorphClass?getDefaultForm(G.hero.classId):null;
+  const bot=botQueue[0];
+  const pHp=prevPlayer?Math.min(s.hp,prevPlayer.hp+Math.floor(s.hp*.3)):s.hp;
+  const pMp=prevPlayer?Math.min(s.mp,prevPlayer.mp+Math.floor(s.mp*.4)):s.mp;
+  const startForm=prevPlayer?.activeForm||(isMorphClass?getDefaultForm(G.hero.classId):null);
   battle={
-    player:{name:G.hero.name,e:cls.e,hp:s.hp,maxHp:s.hp,mp:s.mp,maxMp:s.mp,
+    player:{name:G.hero.name,e:cls.e,hp:pHp,maxHp:s.hp,mp:pMp,maxMp:s.mp,
       atk:s.atk,def:s.def,crit:s.crit,shield:false,stunned:0,slow:0,cds:{},
-      activeForm:startForm},
+      dotTurns:0,dotDmg:0,smokeCounter:0,activeForm:startForm},
     enemy:{name:bot.name,e:bot.e,hp:bot.hp,maxHp:bot.hp,mp:60,maxMp:60,
       atk:bot.atk,def:bot.def,crit:bot.crit,shield:false,stunned:0,slow:0,cds:{},
-      patIdx:bi,moveIdx:0},
-    waiting:true,log:[],
+      patIdx:bot.patIdx,moveIdx:0,dotTurns:0,dotDmg:0,smokeCounter:0},
+    waiting:true,log:[],botQueue:botQueue.slice(1),waveNum,totalWaves,
   };
   document.getElementById('battle-log').innerHTML='';
-  goScreen('battle');
+  if(waveNum===1)goScreen('battle');
   renderBattleUI();
-  blogAdd('system',`⚔️ ${battle.player.name} vs ${battle.enemy.name}! Fight!`);
+  const wStr=totalWaves>1?` (Bot ${waveNum}/${totalWaves})`:'';
+  blogAdd('system',`⚔️ ${battle.player.name} vs ${bot.name}${wStr}! Fight!`);
   setBattleWaiting(true);
 }
 
@@ -1563,7 +1597,8 @@ function renderBattleUI(){
   const p=battle.player,e=battle.enemy;
   document.getElementById('b-pname').textContent=p.name;
   document.getElementById('b-pemo').textContent=p.e;
-  document.getElementById('b-ename').textContent=e.name;
+  const waveLabel=battle.totalWaves>1?`${e.name} 🌊${battle.waveNum}/${battle.totalWaves}`:e.name;
+  document.getElementById('b-ename').textContent=waveLabel;
   document.getElementById('b-eemo').textContent=e.e;
   const tBar=document.getElementById('transform-bar');
   if(tBar){
@@ -1763,27 +1798,31 @@ function enemyTurn(){
 
 function checkBattleEnd(){
   if(battle.enemy.hp<=0){
+    if(battle.botQueue&&battle.botQueue.length>0){
+      const nextQ=battle.botQueue,nextW=battle.waveNum+1,total=battle.totalWaves,prev=battle.player;
+      blogAdd('system',`✅ ${battle.enemy.name} defeated! Wave ${battle.waveNum}/${total} done! (+30% HP restore)`);
+      setTimeout(()=>launchBotWave(nextQ,nextW,total,prev),1500);
+      return true;
+    }
     blogAdd('system',`🏆 ${battle.player.name} wins!`);
     G.wins++;
-    // Battle gives small points — math training is the main source
-    const pts=Math.floor(10+G.wins*3);
+    const waves=battle.totalWaves||1;
+    const pts=Math.floor(10+G.wins*3)*waves;
     G.points+=pts;
-    // Check for new eggs
     const newEggs=[];
     for(const egg of EGGS){
       if(G.wins>=egg.wins&&!(G.eggs||[]).includes(egg.id)&&!(G.pets||[]).find(p=>p.id===egg.id)){
-        if(!G.eggs)G.eggs=[];
-        G.eggs.push(egg.id);
-        newEggs.push(egg);
+        if(!G.eggs)G.eggs=[];G.eggs.push(egg.id);newEggs.push(egg);
       }
     }
     saveGame();
-    setTimeout(()=>showResult(true,pts,newEggs),1000);return true;
+    setTimeout(()=>showResult(true,pts,newEggs,waves),1000);return true;
   }
   if(battle.player.hp<=0){
     blogAdd('system',`💀 ${battle.player.name} has fallen…`);
     G.losses++;saveGame();
-    setTimeout(()=>showResult(false,0,[]),1000);return true;
+    const waveFell=battle.waveNum||1,total=battle.totalWaves||1;
+    setTimeout(()=>showResult(false,0,[],total,waveFell),1000);return true;
   }
   return false;
 }
@@ -1807,22 +1846,23 @@ function floatDmg(dmg,crit,onPlayer){
   setTimeout(()=>el.remove(),1200);
 }
 
-function showResult(won,pts,newEggs){
+function showResult(won,pts,newEggs,totalWaves=1,waveFell=0){
   battle=null;
   document.getElementById('res-ico').textContent=won?'🏆':'💀';
   document.getElementById('res-title').textContent=won?'Victory!':'Defeated!';
   document.getElementById('res-title').style.color=won?'var(--gold)':'var(--red)';
 
-  // Find next egg milestone
   const nextEgg=EGGS.find(e=>G.wins<e.wins);
   const nextEggHint=nextEgg?`<div style="font-size:.82rem;color:var(--muted);margin-top:6px;">🥚 Next egg at ${nextEgg.wins} wins (${nextEgg.wins-G.wins} to go)</div>`:'<div style="font-size:.82rem;color:var(--gold);margin-top:6px;">🌟 You\'ve earned all eggs!</div>';
 
+  const gauntletStr=totalWaves>1?` — ${totalWaves}-bot gauntlet!`:'';
+  const fallStr=(!won&&totalWaves>1&&waveFell)?`<br><span style="font-size:.82rem;color:var(--muted);">Fell at bot ${waveFell}/${totalWaves}</span>`:'';
   document.getElementById('res-desc').innerHTML=won
-    ?`You crushed your opponent!<br><span style="font-size:.82rem;color:var(--muted);">Battles give small points — train math for big points!</span>`
-    :`Train harder and return stronger!`;
+    ?`You crushed your opponent${gauntletStr}<br><span style="font-size:.82rem;color:var(--muted);">Battles give small points — train math for big points!</span>`
+    :`Train harder and return stronger!${fallStr}`;
 
   let rewardsHTML=won
-    ?`<div class="reward-badge">+${pts} pts</div><div class="reward-badge">Win #${G.wins}</div>`
+    ?`<div class="reward-badge">+${pts} pts</div><div class="reward-badge">Win #${G.wins}</div>${totalWaves>1?`<div class="reward-badge" style="border-color:var(--gold);color:var(--gold);">🌊 ${totalWaves}-Bot Clear!</div>`:''}`
     :`<div class="reward-badge">Losses: ${G.losses}</div>`;
 
   if(newEggs&&newEggs.length>0){
