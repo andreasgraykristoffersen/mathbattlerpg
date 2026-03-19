@@ -446,6 +446,7 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   <div class="shop-tabs">
     <button class="btn btn-gold" id="tab-ab-btn" onclick="switchShopTab('ab')" style="flex:1;padding:10px;">✨ Abilities</button>
     <button class="btn btn-ghost" id="tab-st-btn" onclick="switchShopTab('st')" style="flex:1;padding:10px;">⚔ Stat Upgrades</button>
+    <button class="btn btn-ghost" id="tab-fm-btn" onclick="switchShopTab('fm')" style="flex:1;padding:10px;display:none;">🐾 Forms</button>
   </div>
   <div class="shop-grid" id="shop-grid"></div>
 </div>
@@ -506,6 +507,10 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
       MP: <span id="b-mp">0</span>/<span id="b-mpmax">0</span>
     </div>
     <div class="ab-grid" id="ab-grid"></div>
+    <div id="transform-bar" style="display:none;margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm btn-auto" onclick="openTransformModal()">⟲ Transform</button>
+      <span id="current-form-display" style="font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--purple);"></span>
+    </div>
     <button class="btn btn-ghost btn-sm" style="margin-top:10px;"
       onclick="endBattle();goScreen('hub');">Flee Battle</button>
   </div>
@@ -536,8 +541,28 @@ const CLASSES=[
   {id:'rogue',  name:'Rogue',  e:'🗡️', d:'Speed & crits',      hp:90, mp:80, atk:18,def:6, spd:18},
   {id:'paladin',name:'Paladin',e:'🛡️', d:'Balanced & tanky',   hp:110,mp:90, atk:14,def:12,spd:9},
   {id:'archer', name:'Archer', e:'🏹', d:'Range & accuracy',   hp:85, mp:70, atk:17,def:7, spd:15},
-  {id:'shaman', name:'Shaman', e:'⚡', d:'Elemental fury',     hp:95, mp:100,atk:19,def:6, spd:11},
+  {id:'shaman',      name:'Shaman',      e:'⚡', d:'Elemental fury',          hp:95, mp:100,atk:19,def:6, spd:11},
+  {id:'druid',       name:'Druid',       e:'🌿', d:'Shapeshift into beasts',  hp:100,mp:100,atk:14,def:8, spd:12},
+  {id:'necromancer', name:'Necromancer', e:'💀', d:'Undead forms & dark power',hp:85, mp:115,atk:18,def:4, spd:10},
 ];
+
+// Animal / creature forms for Druid & Necromancer
+const FORMS={
+  druid:[
+    {id:'druid_base',    name:'Nature',    icon:'🌿', desc:'Default nature form',       cost:0,   free:true},
+    {id:'druid_wolf',    name:'Wolf',      icon:'🐺', desc:'Speed & bleed attacks',     cost:200},
+    {id:'druid_bear',    name:'Bear',      icon:'🐻', desc:'Tanky crusher & slams',     cost:250},
+    {id:'druid_eagle',   name:'Eagle',     icon:'🦅', desc:'Aerial crits & dive bombs', cost:300},
+    {id:'druid_serpent', name:'Serpent',   icon:'🐍', desc:'Venom & constriction',      cost:350},
+  ],
+  necromancer:[
+    {id:'necro_lich',      name:'Lich',         icon:'💀', desc:'Default undead sorcerer',   cost:0,   free:true},
+    {id:'necro_wraith',    name:'Wraith',        icon:'👻', desc:'Drain & phase through hits',cost:200},
+    {id:'necro_bonedragon',name:'Bone Dragon',   icon:'🐲', desc:'Ancient undead dragon',     cost:350},
+    {id:'necro_hound',     name:'Shadow Hound',  icon:'🐕', desc:'Dark predator speed',       cost:250},
+    {id:'necro_banshee',   name:'Banshee',       icon:'🌀', desc:'Screams & soul curses',     cost:300},
+  ],
+};
 
 const UPGRADES=[
   {id:'hp',  name:'Iron Vitality',   icon:'❤️',  desc:'+25 max HP',       cost:50, max:10,stat:'hp',  amt:25},
@@ -551,7 +576,7 @@ const UPGRADES=[
 // All abilities — each has a 'classes' list of who can unlock/use it
 const ABILITIES=[
   // ── UNIVERSAL (free basic, every class) ──
-  {id:'basicatk',   name:'Basic Attack',    icon:'👊', desc:'100% damage — always free',                cost:0,   mpCost:0,  cd:0, damage:1.0, heal:0,    eff:'damage',  free:true,  classes:['warrior','mage','rogue','paladin','archer','shaman']},
+  {id:'basicatk',   name:'Basic Attack',    icon:'👊', desc:'100% damage — always free',                cost:0,   mpCost:0,  cd:0, damage:1.0, heal:0,    eff:'damage',  free:true,  classes:['warrior','mage','rogue','paladin','archer','shaman','druid','necromancer']},
 
   // ── WARRIOR ──
   {id:'slash',      name:'Power Slash',     icon:'⚔️',  desc:'150% damage — raw steel fury',             cost:80,  mpCost:0,  cd:0, damage:1.5, heal:0,    eff:'damage',              classes:['warrior']},
@@ -606,6 +631,50 @@ const ABILITIES=[
   {id:'lava',       name:'Lava Burst',      icon:'🌋', desc:'200% molten damage',                       cost:220, mpCost:30, cd:2, damage:2.0, heal:0,    eff:'damage',              classes:['shaman']},
   {id:'ancestral',  name:'Ancestral Spirit',icon:'👻', desc:'Heal 40% HP — ancestral blessing',         cost:260, mpCost:35, cd:4, damage:0,   heal:0.4,  eff:'heal',                classes:['shaman']},
   {id:'thunder',    name:'Thunder Clap',    icon:'💥', desc:'170% dmg + weakens enemy',                 cost:200, mpCost:20, cd:2, damage:1.7, heal:0,    eff:'slow',                classes:['shaman']},
+
+  // ── DRUID — Nature form (default) ──
+  {id:'d_thornwhip',  name:'Thorn Whip',    icon:'🌿', desc:'130% dmg + weakens enemy',             cost:80,  mpCost:0,  cd:0, damage:1.3, heal:0,    eff:'slow',      classes:['druid'], form:'druid_base'},
+  {id:'d_natureheal', name:'Nature Mend',   icon:'🍃', desc:'Restore 30% max HP',                   cost:100, mpCost:15, cd:2, damage:0,   heal:0.3,  eff:'heal',      classes:['druid'], form:'druid_base'},
+  {id:'d_rootsnare',  name:'Root Snare',    icon:'🌱', desc:'80% dmg + stuns enemy 1 turn',         cost:150, mpCost:10, cd:3, damage:0.8, heal:0,    eff:'stun',      classes:['druid'], form:'druid_base'},
+  {id:'d_moonbeam',   name:'Moonbeam',      icon:'🌙', desc:'200% radiant magic damage',            cost:220, mpCost:25, cd:2, damage:2.0, heal:0,    eff:'damage',    classes:['druid'], form:'druid_base'},
+  // ── DRUID — Wolf form ──
+  {id:'d_wolfbite',   name:'Wolf Bite',     icon:'🐺', desc:'160% dmg + bleed DoT 3 turns',         cost:120, mpCost:0,  cd:1, damage:1.6, heal:0,    eff:'dot',       classes:['druid'], form:'druid_wolf'},
+  {id:'d_packfrenzy', name:'Pack Frenzy',   icon:'🐾', desc:'70% dmg × 3 rapid strikes',            cost:200, mpCost:15, cd:2, damage:2.1, heal:0,    eff:'damage',    classes:['druid'], form:'druid_wolf'},
+  {id:'d_howl',       name:'Battle Howl',   icon:'🐕', desc:'Boost own ATK +35% for 2 turns',       cost:160, mpCost:0,  cd:3, damage:0,   heal:0,    eff:'atk_boost', classes:['druid'], form:'druid_wolf'},
+  // ── DRUID — Bear form ──
+  {id:'d_bearslam',   name:'Bear Slam',     icon:'🐻', desc:'220% dmg + stuns enemy 1 turn',        cost:200, mpCost:10, cd:3, damage:2.2, heal:0,    eff:'stun',      classes:['druid'], form:'druid_bear'},
+  {id:'d_ironhide',   name:'Iron Hide',     icon:'🪨', desc:'Shield + heal 15% HP simultaneously',  cost:180, mpCost:15, cd:4, damage:0,   heal:0.15, eff:'shieldheal',classes:['druid'], form:'druid_bear'},
+  {id:'d_maul',       name:'Maul',          icon:'💢', desc:'270% dmg — take 15 recoil',            cost:280, mpCost:20, cd:4, damage:2.7, heal:0,    eff:'berserk',   classes:['druid'], form:'druid_bear'},
+  // ── DRUID — Eagle form ──
+  {id:'d_talon',      name:'Talon Strike',  icon:'🦅', desc:'180% dmg + 20% crit boost',            cost:120, mpCost:0,  cd:1, damage:1.8, heal:0,    eff:'crit',      classes:['druid'], form:'druid_eagle'},
+  {id:'d_divebomb',   name:'Dive Bomb',     icon:'🪶', desc:'280% dmg + stuns enemy 1 turn',        cost:280, mpCost:20, cd:4, damage:2.8, heal:0,    eff:'stun',      classes:['druid'], form:'druid_eagle'},
+  {id:'d_swoop',      name:'Swoop',         icon:'💨', desc:'100% dmg × 2 + weakens enemy',         cost:180, mpCost:10, cd:2, damage:2.0, heal:0,    eff:'slow',      classes:['druid'], form:'druid_eagle'},
+  // ── DRUID — Serpent form ──
+  {id:'d_venombite',  name:'Venom Bite',    icon:'🐍', desc:'120% dmg + venom DoT 4 turns',         cost:150, mpCost:10, cd:2, damage:1.2, heal:0,    eff:'dot',       classes:['druid'], form:'druid_serpent'},
+  {id:'d_constrict',  name:'Constrict',     icon:'🔗', desc:'90% dmg + stuns 2 turns',              cost:240, mpCost:20, cd:4, damage:0.9, heal:0,    eff:'stun2',     classes:['druid'], form:'druid_serpent'},
+  {id:'d_shedscales', name:'Shed Scales',   icon:'✨', desc:'Heal 40% HP + raise a shield',         cost:260, mpCost:30, cd:5, damage:0,   heal:0.4,  eff:'shieldheal',classes:['druid'], form:'druid_serpent'},
+
+  // ── NECROMANCER — Lich form (default) ──
+  {id:'n_darkbolt',   name:'Dark Bolt',       icon:'🌑', desc:'170% dark damage — no MP cost',       cost:90,  mpCost:0,  cd:0, damage:1.7, heal:0,    eff:'damage', classes:['necromancer'], form:'necro_lich'},
+  {id:'n_soulrip',    name:'Soul Rip',        icon:'💀', desc:'110% dmg + steal 55% as HP',          cost:160, mpCost:20, cd:2, damage:1.1, heal:0.55, eff:'drain',  classes:['necromancer'], form:'necro_lich'},
+  {id:'n_curse',      name:'Death Curse',     icon:'☠️',  desc:'120% dmg + heavy slow (-30% atk)',   cost:180, mpCost:15, cd:2, damage:1.2, heal:0,    eff:'slow',   classes:['necromancer'], form:'necro_lich'},
+  {id:'n_bonespear',  name:'Bone Spear',      icon:'🦴', desc:'220% bone projectile damage',         cost:240, mpCost:25, cd:3, damage:2.2, heal:0,    eff:'damage', classes:['necromancer'], form:'necro_lich'},
+  // ── NECROMANCER — Wraith form ──
+  {id:'n_wraithtouch',name:'Wraith Touch',    icon:'👻', desc:'150% dmg + drain 50% as HP',          cost:150, mpCost:10, cd:1, damage:1.5, heal:0.5,  eff:'drain',  classes:['necromancer'], form:'necro_wraith'},
+  {id:'n_phaseshift', name:'Phase Shift',     icon:'🌫️', desc:'Phase through next hit + counter',    cost:200, mpCost:20, cd:3, damage:1.2, heal:0,    eff:'smoke',  classes:['necromancer'], form:'necro_wraith'},
+  {id:'n_deathwail',  name:'Death Wail',      icon:'😱', desc:'130% dmg + stuns enemy 1 turn',       cost:220, mpCost:25, cd:3, damage:1.3, heal:0,    eff:'stun',   classes:['necromancer'], form:'necro_wraith'},
+  // ── NECROMANCER — Bone Dragon form ──
+  {id:'n_bonebreath', name:'Bone Breath',     icon:'🐲', desc:'200% dmg + ash DoT 3 turns',          cost:220, mpCost:20, cd:3, damage:2.0, heal:0,    eff:'dot',    classes:['necromancer'], form:'necro_bonedragon'},
+  {id:'n_dragonfear', name:'Dragon Fear',     icon:'😨', desc:'Stuns enemy 2 turns + 80% dmg',       cost:300, mpCost:35, cd:5, damage:0.8, heal:0,    eff:'stun2',  classes:['necromancer'], form:'necro_bonedragon'},
+  {id:'n_boneshield', name:'Bone Armor',      icon:'🛡️',  desc:'Shield + heal 20% HP simultaneously', cost:250, mpCost:30, cd:4, damage:0,   heal:0.2,  eff:'shieldheal',classes:['necromancer'],form:'necro_bonedragon'},
+  // ── NECROMANCER — Shadow Hound form ──
+  {id:'n_shadowbite', name:'Shadow Bite',     icon:'🐕', desc:'180% fast dark strike + crit boost',  cost:130, mpCost:0,  cd:1, damage:1.8, heal:0,    eff:'crit',   classes:['necromancer'], form:'necro_hound'},
+  {id:'n_packterror', name:'Pack Terror',     icon:'👁️',  desc:'80% dmg × 3 + weakens enemy',         cost:200, mpCost:15, cd:2, damage:2.4, heal:0,    eff:'slow',   classes:['necromancer'], form:'necro_hound'},
+  {id:'n_darkpounce', name:'Dark Pounce',     icon:'🌑', desc:'230% dmg + stuns enemy 1 turn',       cost:260, mpCost:20, cd:3, damage:2.3, heal:0,    eff:'stun',   classes:['necromancer'], form:'necro_hound'},
+  // ── NECROMANCER — Banshee form ──
+  {id:'n_screech',    name:'Banshee Screech', icon:'😱', desc:'Stun + drain MP + 100% dmg',          cost:240, mpCost:20, cd:3, damage:1.0, heal:0,    eff:'manaburn',classes:['necromancer'],form:'necro_banshee'},
+  {id:'n_haunt',      name:'Haunt',           icon:'🌀', desc:'200% spectral dmg + weakens enemy',   cost:220, mpCost:25, cd:2, damage:2.0, heal:0,    eff:'slow',   classes:['necromancer'], form:'necro_banshee'},
+  {id:'n_souldrain',  name:'Soul Drain',      icon:'💜', desc:'120% dmg + drain 65% as HP',          cost:260, mpCost:30, cd:3, damage:1.2, heal:0.65, eff:'drain',  classes:['necromancer'], form:'necro_banshee'},
 ];
 
 // Egg system — milestone wins unlock eggs
@@ -651,7 +720,8 @@ let toastTimer=null;
 
 function defaultGame(){
   return{hero:null,points:0,totalCorrect:0,totalAnswered:0,wins:0,losses:0,
-    upgrades:{},abilities:[],eggs:[],pets:[],streak:0,bestStreak:0,questionsAnswered:0};
+    upgrades:{},abilities:[],eggs:[],pets:[],streak:0,bestStreak:0,questionsAnswered:0,
+    unlockedForms:{}};
 }
 
 // ═══════════════════════════════════════════════════════
@@ -731,7 +801,7 @@ function goScreen(id){
   document.getElementById('screen-'+id).classList.add('active');
   if(id==='hub')    renderHub();
   if(id==='train')  initTrain();
-  if(id==='shop')   renderShop();
+  if(id==='shop'){if(['druid','necromancer'].includes(G.hero?.classId)&&shopTab==='ab')shopTab='fm';renderShop();}
   if(id==='lobby')  renderLobby();
   if(id==='title'){
     document.getElementById('title-user').textContent='Signed in as: '+currentUser?.username;
@@ -946,19 +1016,49 @@ function updateTrainStats(){
 //  SHOP
 // ═══════════════════════════════════════════════════════
 function renderShop(){
+  const classId=G.hero?.classId||'warrior';
+  const isMorph=['druid','necromancer'].includes(classId);
   document.getElementById('shop-pts').textContent=G.points;
   document.getElementById('tab-ab-btn').className='btn btn-'+(shopTab==='ab'?'gold':'ghost');
   document.getElementById('tab-st-btn').className='btn btn-'+(shopTab==='st'?'gold':'ghost');
+  document.getElementById('tab-fm-btn').style.display=isMorph?'':'none';
+  document.getElementById('tab-fm-btn').className='btn btn-'+(shopTab==='fm'?'gold':'ghost');
   const grid=document.getElementById('shop-grid');
+  if(shopTab==='fm'){
+    const forms=FORMS[classId]||[];
+    const unlocked=G.unlockedForms?.[classId]||[];
+    const cls=CLASSES.find(c=>c.id===classId);
+    grid.innerHTML=`<div style="grid-column:span 2;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:1.8rem;">${cls.e}</span>
+      <div>
+        <div class="title-font" style="font-size:.85rem;color:var(--gold);">${cls.name} Forms</div>
+        <div style="font-size:.76rem;color:var(--muted);">Unlock forms to gain new abilities — transform in battle!</div>
+      </div></div>`
+    +forms.map(form=>{
+      const owned=form.free||unlocked.includes(form.id);
+      const cant=!form.free&&G.points<form.cost;
+      const formAbs=ABILITIES.filter(a=>a.classes.includes(classId)&&a.form===form.id);
+      const preview=formAbs.slice(0,3).map(a=>`<span style="margin-right:8px;">${a.icon} ${a.name}</span>`).join('');
+      return`<div class="shop-card${owned?' owned':cant?' unaffordable':''}" onclick="${owned?'':'buyForm(\''+form.id+'\')'}">
+        <div class="shop-ico">${form.icon}</div>
+        <div class="shop-name">${form.name} Form</div>
+        <div class="shop-desc">${form.desc}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin:6px 0;">${preview}</div>
+        <div class="shop-cost">${owned?'<span style="color:var(--green)">✓ Unlocked</span>':'✦ '+form.cost+' pts'}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
   if(shopTab==='ab'){
-    const classId=G.hero?.classId||'warrior';
-    const classAbs=ABILITIES.filter(a=>!a.free&&a.classes.includes(classId));
+    const classAbs=isMorph
+      ?[]
+      :ABILITIES.filter(a=>!a.free&&a.classes.includes(classId)&&!a.form);
     const cls=CLASSES.find(c=>c.id===classId);
     grid.innerHTML=`<div style="grid-column:span 2;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
       <span style="font-size:1.8rem;">${cls.e}</span>
       <div>
         <div class="title-font" style="font-size:.85rem;color:var(--gold);">${cls.name} Abilities</div>
-        <div style="font-size:.76rem;color:var(--muted);">These abilities are exclusive to your class</div>
+        <div style="font-size:.76rem;color:var(--muted);">${isMorph?'Unlock Forms tab to get abilities for each form':'These abilities are exclusive to your class'}</div>
       </div>
     </div>`
     +classAbs.map(ab=>{
@@ -994,6 +1094,22 @@ function renderShop(){
 }
 
 function switchShopTab(t){shopTab=t;renderShop();}
+
+function buyForm(formId){
+  const classId=G.hero?.classId;
+  const form=(FORMS[classId]||[]).find(f=>f.id===formId);
+  if(!form){toast('Unknown form!');return;}
+  if(form.free){toast('Already unlocked!');return;}
+  if((G.unlockedForms?.[classId]||[]).includes(formId)){toast('Already unlocked!');return;}
+  if(G.points<form.cost){toast('Not enough points!');return;}
+  G.points-=form.cost;
+  if(!G.unlockedForms)G.unlockedForms={};
+  if(!G.unlockedForms[classId])G.unlockedForms[classId]=[];
+  G.unlockedForms[classId].push(formId);
+  saveGame();
+  toast(`${form.icon} ${form.name} form unlocked! Transform in battle!`);
+  renderShop();
+}
 
 function buyAb(id){
   const ab=ABILITIES.find(a=>a.id===id);
@@ -1089,9 +1205,12 @@ function startBotBattle(){
   const cls=CLASSES.find(c=>c.id===G.hero.classId);
   const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
   const bot={...BOTS[bi]};
+  const isMorphClass=['druid','necromancer'].includes(G.hero.classId);
+  const startForm=isMorphClass?getDefaultForm(G.hero.classId):null;
   battle={
     player:{name:G.hero.name,e:cls.e,hp:s.hp,maxHp:s.hp,mp:s.mp,maxMp:s.mp,
-      atk:s.atk,def:s.def,crit:s.crit,shield:false,stunned:0,slow:0,cds:{}},
+      atk:s.atk,def:s.def,crit:s.crit,shield:false,stunned:0,slow:0,cds:{},
+      activeForm:startForm},
     enemy:{name:bot.name,e:bot.e,hp:bot.hp,maxHp:bot.hp,mp:60,maxMp:60,
       atk:bot.atk,def:bot.def,crit:bot.crit,shield:false,stunned:0,slow:0,cds:{},
       patIdx:bi,moveIdx:0},
@@ -1110,6 +1229,15 @@ function renderBattleUI(){
   document.getElementById('b-pemo').textContent=p.e;
   document.getElementById('b-ename').textContent=e.name;
   document.getElementById('b-eemo').textContent=e.e;
+  const tBar=document.getElementById('transform-bar');
+  if(tBar){
+    const isMorph=['druid','necromancer'].includes(G.hero?.classId);
+    tBar.style.display=isMorph?'flex':'none';
+    if(isMorph&&p.activeForm){
+      const form=(FORMS[G.hero.classId]||[]).find(f=>f.id===p.activeForm);
+      document.getElementById('current-form-display').textContent=form?form.icon+' '+form.name+' Form':'';
+    }
+  }
   updateBattleHP();
 }
 
@@ -1131,8 +1259,23 @@ function setBattleWaiting(v){
   renderAbilityBtns();
 }
 
+function getDefaultForm(classId){return classId==='druid'?'druid_base':'necro_lich';}
+function isFormUnlocked(classId,formId){
+  const form=(FORMS[classId]||[]).find(f=>f.id===formId);
+  return !!(form?.free||((G.unlockedForms||{})[classId]||[]).includes(formId));
+}
+
 function getPlayerAbs(){
   const classId=G.hero?.classId||'warrior';
+  if(['druid','necromancer'].includes(classId)){
+    const activeForm=battle?.player?.activeForm||getDefaultForm(classId);
+    return ABILITIES.filter(a=>{
+      if(!a.classes.includes(classId))return false;
+      if(a.free)return true;
+      if(!a.form)return false;
+      return a.form===activeForm&&isFormUnlocked(classId,a.form);
+    });
+  }
   return ABILITIES.filter(a=>(a.free||(G.abilities||[]).includes(a.id))&&a.classes.includes(classId));
 }
 
@@ -1356,6 +1499,53 @@ function showResult(won,pts,newEggs){
 }
 
 function endBattle(){battle=null;}
+
+// ── TRANSFORM SYSTEM ──
+function openTransformModal(){
+  if(!battle||!battle.waiting)return;
+  const classId=G.hero?.classId;
+  const forms=FORMS[classId]||[];
+  const active=battle.player.activeForm;
+  const modal=document.createElement('div');
+  modal.className='modal-bg';modal.id='transform-modal';
+  modal.innerHTML=`<div class="modal" style="max-width:420px;">
+    <div class="card-title">⟲ Choose Form</div>
+    <p style="font-size:.8rem;color:var(--muted);text-align:center;margin-bottom:14px;">Transforming costs your turn</p>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;">
+      ${forms.map(f=>{
+        const owned=isFormUnlocked(classId,f.id);
+        const isActive=f.id===active;
+        const formAbs=ABILITIES.filter(a=>a.classes.includes(classId)&&a.form===f.id);
+        const preview=formAbs.slice(0,2).map(a=>a.icon+' '+a.name).join(' · ');
+        return`<div class="egg-card${!owned?' locked':''}" style="${isActive?'border-color:var(--green);background:rgba(62,207,106,.07);':''}"
+          ${owned&&!isActive?`onclick="transformTo('${f.id}')"`:''}>
+          <span class="egg-ico">${f.icon}</span>
+          <div class="egg-name" style="color:${isActive?'var(--green)':'var(--purple)'};">${f.name}${isActive?' ✓':''}</div>
+          <div class="egg-req" style="font-size:.68rem;">${owned?preview:'Unlock in Shop'}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <button class="btn btn-ghost" onclick="document.getElementById('transform-modal').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+function transformTo(formId){
+  document.getElementById('transform-modal')?.remove();
+  if(!battle)return;
+  const classId=G.hero?.classId;
+  const form=(FORMS[classId]||[]).find(f=>f.id===formId);
+  if(!form)return;
+  battle.player.activeForm=formId;
+  battle.player.e=form.icon;
+  document.getElementById('b-pemo').textContent=form.icon;
+  document.getElementById('current-form-display').textContent=form.icon+' '+form.name+' Form';
+  renderAbilityBtns();
+  blogAdd('player',`${form.icon} ${battle.player.name} transforms into ${form.name} form!`);
+  // costs the player's turn
+  setBattleWaiting(false);
+  setTimeout(()=>enemyTurn(),1000);
+}
 
 // ═══════════════════════════════════════════════════════
 //  EGGS & PETS
