@@ -296,6 +296,36 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
+/* ── ROSTER ── */
+#screen-roster{justify-content:flex-start;padding-top:24px;}
+.roster-wrap{width:100%;max-width:560px;}
+.roster-hero{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:16px 18px;display:flex;gap:14px;align-items:center;cursor:pointer;
+  transition:all .2s;margin-bottom:12px;}
+.roster-hero:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.roster-ico{font-size:2.6rem;flex-shrink:0;}
+.roster-info{flex:1;min-width:0;}
+.roster-name{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);}
+.roster-meta{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--muted);margin-top:3px;}
+.roster-del{background:transparent;border:1px solid rgba(224,53,53,.3);border-radius:6px;
+  padding:5px 10px;color:var(--red);font-size:.7rem;cursor:pointer;font-family:'Cinzel',serif;
+  flex-shrink:0;transition:all .18s;}
+.roster-del:hover{background:rgba(224,53,53,.12);}
+.roster-new{background:var(--bg3);border:2px dashed var(--border);border-radius:14px;
+  padding:20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px;}
+.roster-new:hover{border-color:var(--gold);}
+
+/* ── GOOGLE BTN ── */
+.btn-google{background:#fff;color:#3c4043;border:1.5px solid #dadce0;border-radius:8px;
+  padding:11px 20px;display:flex;align-items:center;justify-content:center;gap:10px;
+  font-family:'Lora',serif;font-size:.9rem;cursor:pointer;transition:all .18s;width:100%;}
+.btn-google:hover{background:#f8f9fa;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+.btn-google:active{transform:scale(.98);}
+.google-logo{width:18px;height:18px;flex-shrink:0;}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0;
+  color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:.74rem;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
 /* ── RESPONSIVE ── */
 @media(max-width:500px){
   .class-grid{grid-template-columns:repeat(2,1fr);}
@@ -315,13 +345,24 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   <div class="card" style="width:100%;max-width:380px;">
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</button>
-      <button class="auth-tab"        id="tab-reg"   onclick="switchAuthTab('register')">Create Account</button>
+      <button class="auth-tab"        id="tab-reg"   onclick="switchAuthTab('register')">Register</button>
     </div>
     <div id="auth-err" class="auth-err"></div>
     <div id="auth-ok"  class="auth-ok"></div>
+    <!-- Google sign-in -->
+    <button class="btn-google" onclick="googleSignIn()">
+      <svg class="google-logo" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider">or use email</div>
     <div class="fgroup">
-      <label class="lbl">Username</label>
-      <input type="text" id="auth-user" placeholder="Your username…" maxlength="20" autocomplete="username">
+      <label class="lbl" id="auth-user-lbl">Email</label>
+      <input type="text" id="auth-user" placeholder="you@email.com" maxlength="60" autocomplete="email">
     </div>
     <div class="fgroup" style="margin-bottom:20px">
       <label class="lbl">Password</label>
@@ -330,8 +371,22 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
     </div>
     <button class="btn btn-gold" id="auth-btn" onclick="submitAuth()">Sign In</button>
     <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;">
-      Your hero is saved to your account
+      Up to 5 heroes saved per account
     </p>
+  </div>
+</div>
+
+<!-- ══════════════════════ ROSTER ══════════════════════ -->
+<div id="screen-roster" class="screen">
+  <div class="roster-wrap">
+    <div class="hub-header" style="margin-bottom:20px;">
+      <div class="hub-title">👥 Your Heroes</div>
+      <div style="display:flex;align-items:center;gap:9px;">
+        <span class="mono" id="roster-user" style="font-size:.72rem;color:var(--muted);"></span>
+        <button class="btn btn-ghost btn-auto btn-sm" onclick="signOut()">Sign Out</button>
+      </div>
+    </div>
+    <div id="roster-grid"></div>
   </div>
 </div>
 
@@ -402,7 +457,12 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
       <div class="menu-tile-title">Eggs & Pets</div>
       <div class="menu-tile-desc">Hatch eggs earned from battle wins</div>
     </div>
-    <div class="menu-tile" onclick="signOut()" style="border-color:rgba(224,53,53,.15);grid-column:span 2;">
+    <div class="menu-tile" onclick="goScreen('roster')" style="border-color:rgba(74,158,255,.15);">
+      <div class="menu-tile-ico">👥</div>
+      <div class="menu-tile-title" style="color:var(--blue);">Characters</div>
+      <div class="menu-tile-desc">Switch or create a hero</div>
+    </div>
+    <div class="menu-tile" onclick="signOut()" style="border-color:rgba(224,53,53,.15);">
       <div class="menu-tile-ico">🚪</div>
       <div class="menu-tile-title" style="color:var(--red);">Sign Out</div>
       <div class="menu-tile-desc">Save &amp; switch account</div>
@@ -729,7 +789,20 @@ function defaultGame(){
 // ═══════════════════════════════════════════════════════
 function stoGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function stoSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
-function saveGame(){if(currentUser)stoSet('mb_'+currentUser.username,G);}
+function getUserData(){
+  const raw=stoGet('mb_'+currentUser.username);
+  if(!raw)return{heroes:[],activeIdx:0};
+  // migrate old single-hero format
+  if(!raw.heroes){return{heroes:[{...defaultGame(),...raw}],activeIdx:0};}
+  return raw;
+}
+function saveGame(){
+  if(!currentUser)return;
+  const ud=getUserData();
+  const idx=ud.activeIdx||0;
+  ud.heroes[idx]={...G};
+  stoSet('mb_'+currentUser.username,ud);
+}
 
 function hashPw(pw){
   let h=5381;
@@ -753,21 +826,44 @@ function switchAuthTab(t){
 function showAuthErr(m){const e=document.getElementById('auth-err');e.textContent=m;e.style.display='block';document.getElementById('auth-ok').style.display='none';}
 function showAuthOk(m){const e=document.getElementById('auth-ok');e.textContent=m;e.style.display='block';document.getElementById('auth-err').style.display='none';}
 
+function isValidEmail(v){return/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}
+
+function googleSignIn(){
+  const email=prompt('Enter your Google email address:');
+  if(!email||!email.trim())return;
+  const addr=email.trim().toLowerCase();
+  if(!isValidEmail(addr)){toast('Please enter a valid email address.');return;}
+  const accounts=stoGet('mb_accounts')||{};
+  if(!accounts[addr]){
+    // auto-create Google account (no password needed)
+    accounts[addr]={ph:'google',provider:'google'};
+    stoSet('mb_accounts',accounts);
+  }
+  if(accounts[addr].ph!=='google'&&accounts[addr].provider!=='google'){
+    toast('That email is registered with a password — sign in below.');return;
+  }
+  finishLogin(addr);
+  toast('Signed in with Google!');
+}
+
 function submitAuth(){
-  const user=document.getElementById('auth-user').value.trim().toLowerCase();
+  const raw=document.getElementById('auth-user').value.trim();
+  const user=raw.toLowerCase();
   const pass=document.getElementById('auth-pass').value;
-  if(!user||user.length<3){showAuthErr('Username must be 3+ characters.');return;}
+  if(!user||user.length<3){showAuthErr('Email must be 3+ characters.');return;}
   if(!pass||pass.length<4){showAuthErr('Password must be 4+ characters.');return;}
   const accounts=stoGet('mb_accounts')||{};
   const ph=hashPw(pass);
   if(authMode==='register'){
-    if(accounts[user]){showAuthErr('Username taken — try signing in!');return;}
+    if(!isValidEmail(user)){showAuthErr('Please enter a valid email address.');return;}
+    if(accounts[user]){showAuthErr('Email already registered — try signing in!');return;}
     accounts[user]={ph};
     stoSet('mb_accounts',accounts);
     showAuthOk('Account created! Signing you in…');
     setTimeout(()=>finishLogin(user),900);
   } else {
     if(!accounts[user]){showAuthErr('Account not found — register first!');return;}
+    if(accounts[user].ph==='google'){showAuthErr('This account uses Google sign-in.');return;}
     if(accounts[user].ph!==ph){showAuthErr('Wrong password.');return;}
     finishLogin(user);
   }
@@ -775,14 +871,16 @@ function submitAuth(){
 
 function finishLogin(username){
   currentUser={username};
-  const saved=stoGet('mb_'+username);
-  G=saved?{...defaultGame(),...saved}:defaultGame();
+  const ud=getUserData();
+  // save back in case we migrated
+  stoSet('mb_'+username,ud);
+  const activeHero=ud.heroes[ud.activeIdx||0];
+  G=activeHero?{...defaultGame(),...activeHero}:defaultGame();
   document.getElementById('auth-err').style.display='none';
   document.getElementById('auth-ok').style.display='none';
   document.getElementById('auth-user').value='';
   document.getElementById('auth-pass').value='';
-  if(G.hero) goScreen('hub');
-  else goScreen('title');
+  goScreen('roster');
 }
 
 function signOut(){
@@ -791,6 +889,77 @@ function signOut(){
   G=defaultGame();
   goScreen('auth');
   toast('Signed out.');
+}
+
+// ── ROSTER (multi-character) ──
+function renderRoster(){
+  if(!currentUser)return;
+  document.getElementById('roster-user').textContent=currentUser.username;
+  const ud=getUserData();
+  const heroes=ud.heroes||[];
+  const grid=document.getElementById('roster-grid');
+  let html='';
+  heroes.forEach((h,i)=>{
+    if(!h||!h.hero)return;
+    const cls=CLASSES.find(c=>c.id===h.hero.classId)||CLASSES[0];
+    const lvl=Math.floor(1+(h.totalCorrect||0)/10);
+    const isActive=i===(ud.activeIdx||0)&&G.hero?.name===h.hero.name;
+    html+=`<div class="roster-hero" onclick="loadHero(${i})" style="${isActive?'border-color:var(--gold);background:rgba(242,199,68,.04);':''}">
+      <div class="roster-ico">${cls.e}</div>
+      <div class="roster-info">
+        <div class="roster-name">${h.hero.name}${isActive?' <span style="font-size:.68rem;color:var(--green);">● Active</span>':''}</div>
+        <div class="roster-meta">Lv.${lvl} ${cls.name} · ${h.wins||0} Wins · ${h.points||0} pts</div>
+      </div>
+      <button class="roster-del" onclick="event.stopPropagation();deleteHero(${i})">✕ Delete</button>
+    </div>`;
+  });
+  if(heroes.length<5){
+    html+=`<div class="roster-new" onclick="goScreen('create')">
+      <div style="font-size:2rem;margin-bottom:6px;color:var(--gold);">＋</div>
+      <div class="title-font" style="font-size:.88rem;color:var(--gold);">Create New Hero</div>
+      <div style="font-size:.74rem;color:var(--muted);margin-top:3px;">${heroes.length}/5 slots used</div>
+    </div>`;
+  } else {
+    html+=`<div style="text-align:center;color:var(--muted);font-size:.8rem;padding:10px 0;">
+      ⚠ Max 5 heroes — delete one to create another
+    </div>`;
+  }
+  if(heroes.length===0){
+    html=`<div style="text-align:center;padding:24px 0;">
+      <div style="font-size:3.5rem;margin-bottom:10px;">⚔️</div>
+      <div class="title-font" style="color:var(--gold);margin-bottom:6px;">No Heroes Yet</div>
+      <div style="color:var(--muted);font-size:.84rem;margin-bottom:20px;">Create your first hero to begin!</div>
+    </div>
+    <div class="roster-new" onclick="goScreen('create')">
+      <div style="font-size:2rem;margin-bottom:6px;color:var(--gold);">＋</div>
+      <div class="title-font" style="font-size:.88rem;color:var(--gold);">Create Your First Hero</div>
+    </div>`;
+  }
+  grid.innerHTML=html;
+}
+
+function loadHero(idx){
+  saveGame();
+  const ud=getUserData();
+  if(!ud.heroes[idx]){toast('Hero not found!');return;}
+  ud.activeIdx=idx;
+  stoSet('mb_'+currentUser.username,ud);
+  G={...defaultGame(),...ud.heroes[idx]};
+  goScreen('hub');
+}
+
+function deleteHero(idx){
+  const ud=getUserData();
+  const h=ud.heroes[idx];
+  if(!h||!h.hero)return;
+  if(!confirm(`Delete "${h.hero.name}" permanently? This cannot be undone.`))return;
+  ud.heroes.splice(idx,1);
+  if(ud.activeIdx>=ud.heroes.length)ud.activeIdx=Math.max(0,ud.heroes.length-1);
+  stoSet('mb_'+currentUser.username,ud);
+  if(ud.heroes.length>0){G={...defaultGame(),...ud.heroes[ud.activeIdx]};}
+  else{G=defaultGame();}
+  toast('Hero deleted.');
+  renderRoster();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -803,6 +972,7 @@ function goScreen(id){
   if(id==='train')  initTrain();
   if(id==='shop'){if(['druid','necromancer'].includes(G.hero?.classId)&&shopTab==='ab')shopTab='fm';renderShop();}
   if(id==='lobby')  renderLobby();
+  if(id==='roster') renderRoster();
   if(id==='title'){
     document.getElementById('title-user').textContent='Signed in as: '+currentUser?.username;
   }
@@ -839,8 +1009,14 @@ function pickClass(id){
 function createHero(){
   const name=document.getElementById('hero-name').value.trim();
   if(!name){toast('Enter a hero name!');return;}
-  G={...defaultGame(),hero:{name,classId:selectedClass}};
-  saveGame();
+  const ud=getUserData();
+  if(ud.heroes.length>=5){toast('Max 5 heroes per account!');return;}
+  const newHero={...defaultGame(),hero:{name,classId:selectedClass}};
+  ud.heroes.push(newHero);
+  ud.activeIdx=ud.heroes.length-1;
+  stoSet('mb_'+currentUser.username,ud);
+  G=newHero;
+  document.getElementById('hero-name').value='';
   goScreen('hub');
 }
 
@@ -1131,8 +1307,10 @@ function buyUpg(id){
 }
 
 // ═══════════════════════════════════════════════════════
-//  LOBBY
+//  LOBBY + REAL-TIME PvP (localStorage cross-tab sync)
 // ═══════════════════════════════════════════════════════
+let pvpRole=null,pvpCode=null,pvpPoll=null,pvpSeq=-1,pvpLogShown=0;
+
 function renderLobby(){
   document.getElementById('lobby-main').style.display='flex';
   document.getElementById('lobby-wait').style.display='none';
@@ -1145,41 +1323,219 @@ function createRoom(){
   if(!G.hero){toast('Create a hero first!');return;}
   myRoomCode=genCode();
   document.getElementById('room-code-disp').textContent=myRoomCode;
-  const room={code:myRoomCode,host:G.hero.name,hostClass:G.hero.classId,created:Date.now(),guest:null};
-  stoSet('mb_room_'+myRoomCode,room);
-  showWaiting(`Share code: ${myRoomCode} — waiting for opponent…`);
+  const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  stoSet('mb_room_'+myRoomCode,{
+    code:myRoomCode,created:Date.now(),
+    host:{name:G.hero.name,e:cls.e,classId:G.hero.classId,
+      hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]},
+    guest:null
+  });
+  showWaiting(`Code: ${myRoomCode} — share with your opponent!`);
   waitInterval=setInterval(()=>{
     const r=stoGet('mb_room_'+myRoomCode);
     if(r&&r.guest){
       clearInterval(waitInterval);
-      localStorage.removeItem('mb_room_'+myRoomCode);
-      toast(`${r.guest} joined!`);
-      startBotBattle();
+      toast(`${r.guest.name} joined! Battle starting!`);
+      initPvpLS(myRoomCode,r);
+      setTimeout(()=>launchPvp('host',r),400);
     }
-  },1500);
+  },800);
 }
 
 function joinRoom(){
   const code=document.getElementById('join-code').value.trim().toUpperCase();
-  if(code.length<4){toast('Enter a 4-character code!');return;}
+  if(code.length<4){toast('Enter a 4-letter code!');return;}
+  if(!G.hero){toast('Create a hero first!');return;}
   const r=stoGet('mb_room_'+code);
   if(!r){toast('Room not found!');return;}
-  r.guest=G.hero?.name||'Guest';
+  if(r.guest){toast('Room is full!');return;}
+  const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  r.guest={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
   stoSet('mb_room_'+code,r);
-  toast(`Joining ${r.host}'s battle!`);
-  setTimeout(startBotBattle,800);
+  toast(`Joining ${r.host.name}'s battle!`);
+  let tries=0;
+  const wait=setInterval(()=>{
+    tries++;
+    if(stoGet('mb_pvp_'+code)||tries>20){
+      clearInterval(wait);
+      launchPvp('guest',stoGet('mb_room_'+code)||r);
+    }
+  },300);
 }
 
 async function joinRandom(){
+  if(!G.hero){toast('Create a hero first!');return;}
   showWaiting('Searching for opponents…');
   const keys=Object.keys(localStorage).filter(k=>k.startsWith('mb_room_'));
   const open=keys.map(k=>stoGet(k)).filter(r=>r&&!r.guest&&Date.now()-r.created<120000);
   if(open.length){
-    const r=open[0];r.guest=G.hero?.name||'Guest';
-    stoSet('mb_room_'+r.code,r);toast('Match found!');
-    setTimeout(startBotBattle,800);
+    const r=open[0];
+    const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
+    r.guest={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+      hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
+    stoSet('mb_room_'+r.code,r);toast('Opponent found!');
+    let tries=0;
+    const wait=setInterval(()=>{
+      tries++;
+      if(stoGet('mb_pvp_'+r.code)||tries>20){
+        clearInterval(wait);launchPvp('guest',stoGet('mb_room_'+r.code)||r);
+      }
+    },300);
   } else {
     setTimeout(()=>{cancelWait();toast('No rooms found — fighting a bot!');startBotBattle();},2500);
+  }
+}
+
+function initPvpLS(code,r){
+  stoSet('mb_pvp_'+code,{
+    seq:0,turn:'host',
+    hostHp:r.host.hp,hostMaxHp:r.host.hp,hostMp:r.host.mp,hostMaxMp:r.host.mp,
+    hostAtk:r.host.atk,hostDef:r.host.def,hostCrit:r.host.crit,
+    hostCds:{},hostShield:false,hostSmokeCounter:0,hostStunned:0,hostDotTurns:0,hostDotDmg:0,
+    guestHp:r.guest.hp,guestMaxHp:r.guest.hp,guestMp:r.guest.mp,guestMaxMp:r.guest.mp,
+    guestAtk:r.guest.atk,guestDef:r.guest.def,guestCrit:r.guest.crit,
+    guestCds:{},guestShield:false,guestSmokeCounter:0,guestStunned:0,guestDotTurns:0,guestDotDmg:0,
+    logs:[{t:'system',m:`⚔️ PvP! ${r.host.name} vs ${r.guest.name}! Host goes first!`}],
+    winner:null
+  });
+}
+
+function launchPvp(role,r){
+  if(!G.hero||!r||!r.host||!r.guest){toast('Error starting PvP!');goScreen('lobby');return;}
+  pvpRole=role;pvpCode=r.code;pvpSeq=-1;pvpLogShown=0;
+  const me=role==='host'?r.host:r.guest;
+  const opp=role==='host'?r.guest:r.host;
+  const isMorph=['druid','necromancer'].includes(G.hero.classId);
+  battle={
+    player:{name:me.name,e:me.e,hp:me.hp,maxHp:me.hp,mp:me.mp,maxMp:me.mp,
+      atk:me.atk,def:me.def,crit:me.crit,shield:false,stunned:0,slow:0,cds:{},
+      dotTurns:0,dotDmg:0,smokeCounter:0,
+      activeForm:isMorph?getDefaultForm(G.hero.classId):null},
+    enemy:{name:opp.name,e:opp.e,hp:opp.hp,maxHp:opp.hp,mp:opp.mp,maxMp:opp.mp,
+      atk:opp.atk,def:opp.def,crit:opp.crit,shield:false,stunned:0,slow:0,cds:{},
+      dotTurns:0,dotDmg:0,smokeCounter:0},
+    isPvp:true,waiting:false,log:[]
+  };
+  document.getElementById('battle-log').innerHTML='';
+  goScreen('battle');renderBattleUI();
+  pvpPoll=setInterval(pollPvp,600);
+  pollPvp(); // sync immediately
+}
+
+function pollPvp(){
+  if(!battle?.isPvp||!pvpCode)return;
+  const pvp=stoGet('mb_pvp_'+pvpCode);
+  if(!pvp)return;
+  // Show new logs
+  const logs=pvp.logs||[];
+  while(pvpLogShown<logs.length){const l=logs[pvpLogShown++];blogAdd(l.t||'system',l.m);}
+  if(pvp.seq===pvpSeq)return;
+  pvpSeq=pvp.seq;
+  const me=pvpRole,opp=pvpRole==='host'?'guest':'host';
+  // Sync state
+  battle.player.hp=pvp[me+'Hp'];battle.player.mp=pvp[me+'Mp'];
+  battle.player.stunned=pvp[me+'Stunned']||0;battle.player.shield=pvp[me+'Shield']||false;
+  battle.player.dotTurns=pvp[me+'DotTurns']||0;battle.player.dotDmg=pvp[me+'DotDmg']||0;
+  battle.player.cds={...(pvp[me+'Cds']||{})};
+  battle.enemy.hp=pvp[opp+'Hp'];battle.enemy.mp=pvp[opp+'Mp'];
+  updateBattleHP();
+  // Winner?
+  if(pvp.winner){
+    clearInterval(pvpPoll);pvpPoll=null;
+    const won=pvp.winner===pvpRole;
+    setTimeout(()=>{
+      const pts=won?Math.floor(10+(G.wins+1)*3):0;
+      if(won){G.wins++;G.points+=pts;}else G.losses++;
+      saveGame();pvpRole=null;pvpCode=null;
+      showResult(won,pts,[]);
+    },1200);
+    return;
+  }
+  // Stun skip
+  const myTurn=pvp.turn===pvpRole;
+  if(myTurn&&pvp[me+'Stunned']>0){
+    const np={...pvp};
+    np[me+'Stunned']--;
+    np.logs=[...np.logs,{t:'system',m:`😵 ${battle.player.name} is stunned — turn skipped!`}];
+    np.turn=opp;np.seq++;
+    stoSet('mb_pvp_'+pvpCode,np);pvpSeq=np.seq;
+    setBattleWaiting(false);return;
+  }
+  if(myTurn!==battle.waiting)setBattleWaiting(myTurn);
+}
+
+function commitPvpMove(id){
+  if(!pvpCode)return;
+  const pvp=stoGet('mb_pvp_'+pvpCode);
+  if(!pvp||pvp.turn!==pvpRole){toast('Not your turn!');return;}
+  const ab=ABILITIES.find(a=>a.id===id)||ABILITIES[0];
+  const me=pvpRole,opp=pvpRole==='host'?'guest':'host';
+  if(ab.mpCost>0&&pvp[me+'Mp']<ab.mpCost){toast('Not enough MP!');return;}
+  setBattleWaiting(false);
+  const np={...pvp,logs:[...(pvp.logs||[])]};
+  // Tick my CDs then set new CD
+  const meCds={...(np[me+'Cds']||{})};
+  for(const k in meCds){meCds[k]--;if(meCds[k]<=0)delete meCds[k];}
+  if(ab.cd>0)meCds[id]=ab.cd;
+  np[me+'Cds']=meCds;
+  // MP cost & regen
+  if(ab.mpCost>0)np[me+'Mp']=Math.max(0,np[me+'Mp']-ab.mpCost);
+  np[me+'Mp']=Math.min(np[me+'MaxMp']||battle.player.maxMp,(np[me+'Mp']||0)+5);
+  const crit=Math.random()*100<(np[me+'Crit']+(ab.eff==='crit'?20:0));
+  const p=battle.player;
+  if(ab.eff==='shield'||ab.eff==='smoke'){
+    np[me+'Shield']=true;np[me+'SmokeCounter']=ab.eff==='smoke'?ab.damage:0;
+    np.logs.push({t:'player',m:`🛡️ ${p.name} ${ab.eff==='shield'?'raises a shield':'vanishes in smoke'}!`});
+  } else if(ab.eff==='shieldheal'){
+    np[me+'Shield']=true;
+    const h=Math.floor((np[me+'MaxHp']||battle.player.maxHp)*ab.heal);
+    np[me+'Hp']=Math.min(np[me+'MaxHp']||battle.player.maxHp,np[me+'Hp']+h);
+    np.logs.push({t:'player',m:`🏰 ${p.name} shields + heals ${h} HP!`});
+  } else if(ab.eff==='atk_boost'){
+    np[me+'Atk']=Math.floor((np[me+'Atk']||battle.player.atk)*1.3);
+    np.logs.push({t:'player',m:`😡 ${p.name}'s ATK surges +30%!`});
+  } else if(ab.eff==='heal'){
+    const h=Math.floor((np[me+'MaxHp']||battle.player.maxHp)*ab.heal);
+    np[me+'Hp']=Math.min(np[me+'MaxHp']||battle.player.maxHp,np[me+'Hp']+h);
+    np.logs.push({t:'player',m:`💚 ${p.name} heals ${h} HP!`});
+  } else {
+    let dmg=Math.max(1,Math.floor((np[me+'Atk']||battle.player.atk)*ab.damage)-Math.floor((np[opp+'Def']||battle.enemy.def)*.35)+rnd(-2,3));
+    if(crit)dmg=Math.floor(dmg*1.8);
+    if(np[opp+'Shield']){
+      const ctr=np[opp+'SmokeCounter']||0;np[opp+'Shield']=false;np[opp+'SmokeCounter']=0;
+      np.logs.push({t:'system',m:`🛡️ Shield absorbed ${dmg} damage!`});
+      if(ctr>0){const cd=Math.max(1,Math.floor((np[opp+'Atk']||battle.enemy.atk)*ctr)+rnd(-2,2));np[me+'Hp']=Math.max(0,np[me+'Hp']-cd);np.logs.push({t:'enemy',m:`💨 Counter: ${cd}!`});}
+      dmg=0;
+    }
+    if(dmg>0){
+      if(ab.eff==='stun')np[opp+'Stunned']=1;
+      if(ab.eff==='stun2')np[opp+'Stunned']=2;
+      if(ab.eff==='slow')np[opp+'Atk']=Math.floor((np[opp+'Atk']||battle.enemy.atk)*.8);
+      if(ab.eff==='manaburn')np[opp+'Mp']=Math.max(0,(np[opp+'Mp']||0)-30);
+      if(ab.eff==='berserk'){np[me+'Hp']=Math.max(1,np[me+'Hp']-20);np.logs.push({t:'system',m:'🩸 Recoil: -20 HP'});}
+      if(ab.eff==='drain'||ab.eff==='divheal'){const st=Math.floor(dmg*ab.heal);np[me+'Hp']=Math.min(np[me+'MaxHp']||battle.player.maxHp,np[me+'Hp']+st);if(st>0)np.logs.push({t:'player',m:`🩸 Drained ${st} HP!`});}
+      if(ab.eff==='dot'){np[opp+'DotTurns']=3;np[opp+'DotDmg']=Math.max(1,Math.floor((np[me+'Atk']||battle.player.atk)*0.5));}
+      np[opp+'Hp']=Math.max(0,np[opp+'Hp']-dmg);
+      np.logs.push({t:'player',m:`${p.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`});
+    }
+  }
+  // My DoT
+  if(np[me+'DotTurns']>0){const d=np[me+'DotDmg'];np[me+'Hp']=Math.max(0,np[me+'Hp']-d);np[me+'DotTurns']--;np.logs.push({t:'system',m:`🔥 ${p.name} takes ${d} burn! (${np[me+'DotTurns']} left)`});}
+  // Winner check
+  let winner=null;
+  if(np[opp+'Hp']<=0)winner=pvpRole;
+  if(np[me+'Hp']<=0)winner=opp;
+  np.winner=winner;np.turn=winner?pvpRole:opp;np.seq=(np.seq||0)+1;
+  stoSet('mb_pvp_'+pvpCode,np);pvpSeq=np.seq;
+  battle.player.hp=np[me+'Hp'];battle.player.mp=np[me+'Mp'];
+  battle.enemy.hp=np[opp+'Hp'];updateBattleHP();
+  // New logs
+  while(pvpLogShown<np.logs.length){const l=np.logs[pvpLogShown++];blogAdd(l.t||'system',l.m);}
+  if(winner){
+    clearInterval(pvpPoll);pvpPoll=null;
+    const won=winner===pvpRole;
+    setTimeout(()=>{const pts=won?Math.floor(10+(G.wins+1)*3):0;if(won){G.wins++;G.points+=pts;}else G.losses++;saveGame();pvpRole=null;pvpCode=null;showResult(won,pts,[]);},1200);
   }
 }
 
@@ -1303,6 +1659,7 @@ function renderAbilityBtns(){
 
 function useAbility(id){
   if(!battle||!battle.waiting)return;
+  if(battle.isPvp){commitPvpMove(id);return;}
   const ab=ABILITIES.find(a=>a.id===id);
   if(!ab)return;
   const p=battle.player,e=battle.enemy;
@@ -1498,7 +1855,11 @@ function showResult(won,pts,newEggs){
   goScreen('result');
 }
 
-function endBattle(){battle=null;}
+function endBattle(){
+  if(pvpPoll){clearInterval(pvpPoll);pvpPoll=null;}
+  pvpRole=null;pvpCode=null;
+  battle=null;
+}
 
 // ── TRANSFORM SYSTEM ──
 function openTransformModal(){
