@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MathBattle RPG</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
 <style>
 :root {
   --gold:   #f2c744;
@@ -528,7 +528,7 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
       <button class="btn btn-blue" onclick="createRoom()" style="margin-bottom:16px;">🔗 Generate Room Code</button>
       <div class="divider">or join</div>
       <div style="display:flex;gap:8px;margin-top:12px;margin-bottom:12px;">
-        <input type="text" id="join-code" placeholder="XXXX" maxlength="4"
+        <input type="text" id="join-code" placeholder="XXXXX" maxlength="5"
           style="text-align:center;letter-spacing:4px;text-transform:uppercase;">
         <button class="btn btn-gold btn-auto" style="padding:10px 18px;flex-shrink:0;" onclick="joinRoom()">Join</button>
       </div>
@@ -1308,9 +1308,22 @@ function buyUpg(id){
 }
 
 // ═══════════════════════════════════════════════════════
-//  LOBBY + REAL-TIME PvP (PeerJS — works across devices!)
+//  LOBBY + REAL-TIME PvP (MQTT — works across devices!)
 // ═══════════════════════════════════════════════════════
-let pvpPeer=null,pvpConn=null,pvpRole=null,pvpLogShown=0;
+let mqttClient=null,pvpRole=null,pvpLogShown=0;
+const MQTT_URL='wss://broker.hivemq.com:8884/mqtt';
+
+function mqttSend(data){
+  if(!mqttClient||!myRoomCode||!pvpRole)return;
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/'+(pvpRole==='host'?'h':'g'),JSON.stringify(data),{qos:1});
+}
+function connectMqtt(onReady){
+  if(!window.mqtt){toast('MQTT not loaded — refresh the page!');return;}
+  mqttClient=mqtt.connect(MQTT_URL,{clientId:'mb'+Math.random().toString(36).slice(2,10),clean:true,connectTimeout:10000,reconnectPeriod:0});
+  mqttClient.on('error',()=>{toast('Network error — try again!');cancelWait();});
+  mqttClient.on('connect',onReady);
+  mqttClient.on('message',(topic,msg)=>{try{handlePvpMsg(JSON.parse(msg.toString()));}catch(e){}});
+}
 
 function renderLobby(){
   document.getElementById('lobby-main').style.display='flex';
@@ -1322,46 +1335,29 @@ function genCode(){return Array.from({length:5},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ234
 
 function createRoom(){
   if(!G.hero){toast('Create a hero first!');return;}
-  if(!window.Peer){toast('PeerJS not loaded yet, try again!');return;}
-  myRoomCode=genCode();
-  showWaiting('🔗 Setting up connection…');
-  pvpPeer=new Peer('MBPVP'+myRoomCode,{debug:0});
-  pvpPeer.on('error',err=>{
-    if(err.type==='unavailable-id'){myRoomCode=genCode();pvpPeer.destroy();pvpPeer=null;createRoom();}
-    else{toast('Connection error: '+err.type);cancelWait();}
-  });
-  pvpPeer.on('open',()=>{
+  myRoomCode=genCode();pvpRole='host';
+  showWaiting('🔗 Setting up room…');
+  connectMqtt(()=>{
+    mqttClient.subscribe('mb_pvp/'+myRoomCode+'/g');
+    const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
+    const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+      hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
+    mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'hostData',data:hd}),{retain:true,qos:1});
     document.getElementById('room-code-disp').textContent=myRoomCode;
-    showWaiting(`Code: ${myRoomCode} — share this with your opponent! (works on any device)`);
-    pvpPeer.on('connection',conn=>{
-      pvpConn=conn;
-      conn.on('open',()=>{
-        clearInterval(waitInterval);
-        const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-        conn.send({type:'hostData',data:{name:G.hero.name,e:cls.e,classId:G.hero.classId,
-          hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]}});
-      });
-      conn.on('data',data=>handlePvpMsg(data));
-      conn.on('close',()=>{if(battle?.isPvp){toast('Opponent disconnected!');endBattle();goScreen('hub');}});
-    });
+    showWaiting('Code: '+myRoomCode+' — share with your opponent!');
   });
 }
 
 function joinRoom(){
   const code=document.getElementById('join-code').value.trim().toUpperCase();
-  if(code.length<4){toast('Enter the room code!');return;}
+  if(code.length<5){toast('Enter the full 5-letter code!');return;}
   if(!G.hero){toast('Create a hero first!');return;}
-  if(!window.Peer){toast('PeerJS not loaded yet, try again!');return;}
-  showWaiting('🔗 Connecting to opponent…');
-  pvpPeer=new Peer(undefined,{debug:0});
-  pvpPeer.on('error',err=>{toast('Could not connect — check the code!');cancelWait();});
-  pvpPeer.on('open',()=>{
-    pvpConn=pvpPeer.connect('MBPVP'+code);
-    if(!pvpConn){toast('Room not found!');cancelWait();return;}
-    pvpConn.on('error',()=>{toast('Could not connect — check the code!');cancelWait();});
-    pvpConn.on('open',()=>showWaiting('✅ Connected! Starting battle…'));
-    pvpConn.on('data',data=>handlePvpMsg(data));
-    pvpConn.on('close',()=>{if(battle?.isPvp){toast('Opponent disconnected!');endBattle();goScreen('hub');}});
+  myRoomCode=code;pvpRole='guest';
+  showWaiting('🔗 Connecting…');
+  connectMqtt(()=>{
+    mqttClient.subscribe('mb_pvp/'+code+'/h');
+    showWaiting('✅ Connected! Waiting for host…');
+    setTimeout(()=>{if(!battle){toast('Room not found — check the code!');cancelWait();}},15000);
   });
 }
 
@@ -1374,19 +1370,18 @@ async function joinRandom(){
 // ── PvP message handler ──
 function handlePvpMsg(data){
   if(data.type==='hostData'){
-    // Guest: got host stats → send back ours, launch battle
-    pvpRole='guest';
+    if(pvpRole!=='guest')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
     const gd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
-    pvpConn.send({type:'guestData',data:gd});
-    launchPvpBattle('guest',data.data,gd);
+    mqttClient.publish('mb_pvp/'+myRoomCode+'/g',JSON.stringify({type:'guestData',data:gd}),{qos:1});
+    launchPvpBattle('guest',gd,data.data);
   } else if(data.type==='guestData'){
-    // Host: got guest stats → launch battle
-    pvpRole='host';
+    if(pvpRole!=='host')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
     const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
+    mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
     launchPvpBattle('host',hd,data.data);
   } else if(data.type==='move'){
     applyOpponentPvpMove(data);
@@ -1450,7 +1445,7 @@ function applyOpponentPvpMove(data){
 }
 
 function commitPvpMove(id,isStunSkip){
-  if(!battle?.isPvp||!pvpConn)return;
+  if(!battle?.isPvp||!mqttClient)return;
   if(!battle.waiting&&!isStunSkip)return;
   const ab=ABILITIES.find(a=>a.id===id)||ABILITIES[0];
   const p=battle.player,e=battle.enemy;
@@ -1459,7 +1454,7 @@ function commitPvpMove(id,isStunSkip){
   // Tick CDs
   for(const k in p.cds){p.cds[k]--;if(p.cds[k]<=0)delete p.cds[k];}
   if(isStunSkip){
-    pvpConn.send({type:'move',logs:[],senderHp:p.hp,senderMp:p.mp,senderAtk:p.atk,
+    mqttSend({type:'move',logs:[],senderHp:p.hp,senderMp:p.mp,senderAtk:p.atk,
       senderStunned:0,senderShield:p.shield,receiverHp:e.hp,receiverMp:e.mp,
       receiverStunned:e.stunned,receiverShield:e.shield,receiverSmokeCounter:e.smokeCounter||0,
       receiverDotTurns:e.dotTurns||0,receiverDotDmg:e.dotDmg||0,winner:null});return;
@@ -1507,7 +1502,7 @@ function commitPvpMove(id,isStunSkip){
   let winner=null;
   if(nEHp<=0)winner='sender';
   if(nPHp<=0)winner='receiver';
-  pvpConn.send({type:'move',logs,senderHp:nPHp,senderMp:nPMp,senderAtk:nPAtk,
+  mqttSend({type:'move',logs,senderHp:nPHp,senderMp:nPMp,senderAtk:nPAtk,
     senderStunned:0,senderShield:p.shield,receiverHp:nEHp,receiverMp:nEMp,receiverAtk:nEAtk,
     receiverStunned:nEStun,receiverShield:nEShield,receiverSmokeCounter:nESmoke,
     receiverDotTurns:nEDotT,receiverDotDmg:nEDotD,winner});
@@ -1528,9 +1523,11 @@ function showWaiting(msg){
 
 function cancelWait(){
   clearInterval(waitInterval);
-  myRoomCode=null;
-  if(pvpConn){try{pvpConn.close();}catch(e){}pvpConn=null;}
-  if(pvpPeer){try{pvpPeer.destroy();}catch(e){}pvpPeer=null;}
+  if(mqttClient){
+    if(pvpRole==='host'&&myRoomCode){try{mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});}catch(e){}}
+    try{mqttClient.end(true);}catch(e){}mqttClient=null;
+  }
+  myRoomCode=null;pvpRole=null;
   document.getElementById('lobby-main').style.display='flex';
   document.getElementById('lobby-wait').style.display='none';
 }
@@ -1839,9 +1836,11 @@ function showResult(won,pts,newEggs){
 }
 
 function endBattle(){
-  if(pvpConn){try{pvpConn.send({type:'leave'});}catch(e){}try{pvpConn.close();}catch(e){}pvpConn=null;}
-  if(pvpPeer){try{pvpPeer.destroy();}catch(e){}pvpPeer=null;}
-  pvpRole=null;pvpCode=null;
+  if(mqttClient){
+    if(battle?.isPvp&&myRoomCode&&pvpRole){try{mqttSend({type:'leave'});}catch(e){}}
+    try{mqttClient.end(true);}catch(e){}mqttClient=null;
+  }
+  pvpRole=null;myRoomCode=null;
   battle=null;
 }
 
