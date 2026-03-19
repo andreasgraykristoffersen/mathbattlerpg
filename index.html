@@ -6,6 +6,9 @@
 <title>MathBattle RPG</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <style>
 :root {
   --gold:   #f2c744;
@@ -343,37 +346,36 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
 <div id="screen-auth" class="screen active">
   <div class="auth-logo">MathBattle<br>RPG</div>
   <div class="auth-sub">⚔ MASTER MATH · FORGE POWER · CONQUER ⚔</div>
-  <div class="card" style="width:100%;max-width:380px;">
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</button>
-      <button class="auth-tab"        id="tab-reg"   onclick="switchAuthTab('register')">Register</button>
-    </div>
-    <div id="auth-err" class="auth-err"></div>
-    <div id="auth-ok"  class="auth-ok"></div>
-    <!-- Google sign-in -->
-    <button class="btn-google" onclick="googleSignIn()">
-      <svg class="google-logo" viewBox="0 0 48 48">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-      </svg>
-      Continue with Google
+  <div id="auth-loading" style="text-align:center;color:var(--muted);margin-top:40px;font-family:'Share Tech Mono',monospace;">Checking login…</div>
+  <div id="auth-card" class="card" style="display:none;width:100%;max-width:380px;">
+    <div style="font-size:1rem;color:var(--gold);font-family:'Cinzel',serif;text-align:center;margin-bottom:18px;">Welcome, Hero</div>
+    <div id="auth-err" class="auth-err" style="display:none;"></div>
+    <button class="btn-google" onclick="signInWithGoogle()">
+      <svg class="google-logo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Sign in with Google
     </button>
-    <div class="auth-divider">or use email</div>
-    <div class="fgroup">
-      <label class="lbl" id="auth-user-lbl">Email</label>
-      <input type="text" id="auth-user" placeholder="you@email.com" maxlength="60" autocomplete="email">
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;">Progress saved to the cloud · 5 heroes per account</p>
+  </div>
+  <div id="auth-setup" class="card" style="display:none;width:100%;max-width:380px;">
+    <div style="color:var(--red);font-size:.92rem;font-weight:bold;margin-bottom:10px;">⚠️ Firebase Not Configured</div>
+    <p style="color:var(--muted);font-size:.8rem;line-height:1.6;">To enable login and cloud saves, add your Firebase config to the <code>FIREBASE_CONFIG</code> object at the top of the script. See setup instructions in the code comments.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════ DISPLAY NAME ══════════════════════ -->
+<div id="screen-displayname" class="screen">
+  <div class="auth-logo">MathBattle<br>RPG</div>
+  <div class="auth-sub">Choose Your Display Name</div>
+  <div class="card" style="width:100%;max-width:380px;">
+    <div style="font-size:.88rem;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+      Pick a name other players will see — <strong style="color:var(--gold);">not your real name!</strong>
     </div>
-    <div class="fgroup" style="margin-bottom:20px">
-      <label class="lbl">Password</label>
-      <input type="password" id="auth-pass" placeholder="Your password…" maxlength="40"
-        autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuth()">
+    <div class="fgroup" style="margin-bottom:20px;">
+      <label class="lbl">Display Name</label>
+      <input type="text" id="display-name-input" placeholder="DragonSlayer99" maxlength="20"
+        onkeydown="if(event.key==='Enter')saveDisplayName()">
     </div>
-    <button class="btn btn-gold" id="auth-btn" onclick="submitAuth()">Sign In</button>
-    <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;">
-      Up to 5 heroes saved per account
-    </p>
+    <button class="btn btn-gold" onclick="saveDisplayName()">Start Playing →</button>
   </div>
 </div>
 
@@ -773,7 +775,51 @@ const CATS=['Arithmetic','Multiplication','Division','Fractions','Algebra','Powe
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let currentUser=null;
+// ═══════════════════════════════════════════════════════
+//  FIREBASE CONFIG — paste your Firebase project config here
+//  Setup: console.firebase.google.com → New project →
+//  Authentication (enable Google) → Realtime Database (test mode)
+//  → Project Settings → Add Web App → copy config below
+// ═══════════════════════════════════════════════════════
+const FIREBASE_CONFIG={
+  apiKey:"",
+  authDomain:"",
+  databaseURL:"",
+  projectId:"",
+  storageBucket:"",
+  messagingSenderId:"",
+  appId:""
+};
+
+let currentUser=null;   // {uid, displayName}
+let userDataCache=null; // {heroes:[], activeIdx:0}
+let fbDb=null,fbAuth=null;
+
+function initFirebase(){
+  if(!FIREBASE_CONFIG.apiKey)return false;
+  if(fbDb)return true;
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbDb=firebase.database();
+  fbAuth=firebase.auth();
+  fbAuth.onAuthStateChanged(async user=>{
+    document.getElementById('auth-loading').style.display='none';
+    if(user){
+      try{
+        const snap=await fbDb.ref('users/'+user.uid+'/displayName').once('value');
+        if(snap.val()){
+          await finishLogin(user.uid,snap.val());
+        } else {
+          currentUser={uid:user.uid,displayName:null};
+          goScreen('displayname');
+        }
+      }catch(e){showAuthErr('Load error: '+e.message);}
+    } else {
+      document.getElementById('auth-card').style.display='block';
+    }
+  });
+  return true;
+}
+
 let G=defaultGame();
 let selectedClass=CLASSES[0].id;
 let shopTab='ab';
@@ -795,111 +841,88 @@ function defaultGame(){
 function stoGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function stoSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 function getUserData(){
-  const raw=stoGet('mb_'+currentUser.username);
-  if(!raw)return{heroes:[],activeIdx:0};
-  // migrate old single-hero format
-  if(!raw.heroes){return{heroes:[{...defaultGame(),...raw}],activeIdx:0};}
-  return raw;
+  return userDataCache||{heroes:[],activeIdx:0};
 }
+
 function saveGame(){
-  if(!currentUser)return;
+  if(!currentUser||!fbDb)return;
   const ud=getUserData();
   const idx=ud.activeIdx||0;
   ud.heroes[idx]={...G};
-  stoSet('mb_'+currentUser.username,ud);
-}
-
-function hashPw(pw){
-  let h=5381;
-  for(let i=0;i<pw.length;i++)h=(h*33)^pw.charCodeAt(i);
-  return (h>>>0).toString(36);
+  userDataCache=ud;
+  fbDb.ref('users/'+currentUser.uid).set({
+    displayName:currentUser.displayName,
+    heroes:ud.heroes,
+    activeIdx:ud.activeIdx
+  }).catch(()=>{});
 }
 
 // ═══════════════════════════════════════════════════════
 //  AUTH
 // ═══════════════════════════════════════════════════════
-let authMode='login';
-function switchAuthTab(t){
-  authMode=t;
-  document.getElementById('tab-login').className='auth-tab'+(t==='login'?' active':'');
-  document.getElementById('tab-reg').className='auth-tab'+(t==='register'?' active':'');
-  document.getElementById('auth-btn').textContent=t==='login'?'Sign In':'Create Account';
-  document.getElementById('auth-err').style.display='none';
-  document.getElementById('auth-ok').style.display='none';
-}
-
-function showAuthErr(m){const e=document.getElementById('auth-err');e.textContent=m;e.style.display='block';document.getElementById('auth-ok').style.display='none';}
-function showAuthOk(m){const e=document.getElementById('auth-ok');e.textContent=m;e.style.display='block';document.getElementById('auth-err').style.display='none';}
-
-function isValidEmail(v){return/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}
-
-function googleSignIn(){
-  const email=prompt('Enter your Google email address:');
-  if(!email||!email.trim())return;
-  const addr=email.trim().toLowerCase();
-  if(!isValidEmail(addr)){toast('Please enter a valid email address.');return;}
-  const accounts=stoGet('mb_accounts')||{};
-  if(!accounts[addr]){
-    // auto-create Google account (no password needed)
-    accounts[addr]={ph:'google',provider:'google'};
-    stoSet('mb_accounts',accounts);
-  }
-  if(accounts[addr].ph!=='google'&&accounts[addr].provider!=='google'){
-    toast('That email is registered with a password — sign in below.');return;
-  }
-  finishLogin(addr);
-  toast('Signed in with Google!');
-}
-
-function submitAuth(){
-  const raw=document.getElementById('auth-user').value.trim();
-  const user=raw.toLowerCase();
-  const pass=document.getElementById('auth-pass').value;
-  if(!user||user.length<3){showAuthErr('Email must be 3+ characters.');return;}
-  if(!pass||pass.length<4){showAuthErr('Password must be 4+ characters.');return;}
-  const accounts=stoGet('mb_accounts')||{};
-  const ph=hashPw(pass);
-  if(authMode==='register'){
-    if(!isValidEmail(user)){showAuthErr('Please enter a valid email address.');return;}
-    if(accounts[user]){showAuthErr('Email already registered — try signing in!');return;}
-    accounts[user]={ph};
-    stoSet('mb_accounts',accounts);
-    showAuthOk('Account created! Signing you in…');
-    setTimeout(()=>finishLogin(user),900);
-  } else {
-    if(!accounts[user]){showAuthErr('Account not found — register first!');return;}
-    if(accounts[user].ph==='google'){showAuthErr('This account uses Google sign-in.');return;}
-    if(accounts[user].ph!==ph){showAuthErr('Wrong password.');return;}
-    finishLogin(user);
+async function signInWithGoogle(){
+  if(!fbAuth){toast('Firebase not ready');return;}
+  try{
+    document.getElementById('auth-err').style.display='none';
+    const provider=new firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(provider);
+    // onAuthStateChanged handles the rest
+  }catch(e){
+    document.getElementById('auth-err').textContent=e.code==='auth/popup-closed-by-user'?'Sign-in cancelled.':'Sign-in failed: '+e.message;
+    document.getElementById('auth-err').style.display='block';
   }
 }
 
-function finishLogin(username){
-  currentUser={username};
-  const ud=getUserData();
-  // save back in case we migrated
-  stoSet('mb_'+username,ud);
-  const activeHero=ud.heroes[ud.activeIdx||0];
-  G=activeHero?{...defaultGame(),...activeHero}:defaultGame();
-  document.getElementById('auth-err').style.display='none';
-  document.getElementById('auth-ok').style.display='none';
-  document.getElementById('auth-user').value='';
-  document.getElementById('auth-pass').value='';
+async function saveDisplayName(){
+  const name=document.getElementById('display-name-input').value.trim();
+  if(!name||name.length<2){toast('Enter a display name (2+ chars)!');return;}
+  if(!currentUser||!fbDb){toast('Not signed in!');return;}
+  currentUser.displayName=name;
+  userDataCache={heroes:[],activeIdx:0};
+  await fbDb.ref('users/'+currentUser.uid).set({displayName:name,heroes:[],activeIdx:0});
+  G=defaultGame();
   goScreen('roster');
 }
 
+async function finishLogin(uid,displayName){
+  currentUser={uid,displayName};
+  try{
+    const snap=await fbDb.ref('users/'+uid).once('value');
+    const data=snap.val()||{};
+    userDataCache={heroes:data.heroes||[],activeIdx:data.activeIdx||0};
+  }catch(e){
+    userDataCache={heroes:[],activeIdx:0};
+  }
+  const activeHero=userDataCache.heroes[userDataCache.activeIdx||0];
+  G=activeHero?{...defaultGame(),...activeHero}:defaultGame();
+  goScreen('roster');
+}
+
+function showAuthErr(msg){
+  const el=document.getElementById('auth-err');
+  if(el){el.textContent=msg;el.style.display='block';}
+}
+
 function signOut(){
-  saveGame();
-  currentUser=null;
-  G=defaultGame();
-  goScreen('auth');
-  toast('Signed out.');
+  if(fbAuth){
+    fbAuth.signOut().then(()=>{
+      currentUser=null;userDataCache=null;G=defaultGame();
+      document.getElementById('auth-card').style.display='none';
+      document.getElementById('auth-loading').style.display='block';
+      document.getElementById('auth-loading').textContent='Signing out…';
+      goScreen('auth');
+      setTimeout(()=>{
+        document.getElementById('auth-loading').style.display='none';
+        document.getElementById('auth-card').style.display='block';
+      },600);
+    });
+  }
 }
 
 // ── ROSTER (multi-character) ──
 function renderRoster(){
   if(!currentUser)return;
-  document.getElementById('roster-user').textContent=currentUser.username;
+  document.getElementById('roster-user').textContent=currentUser.displayName||'';
   const ud=getUserData();
   const heroes=ud.heroes||[];
   const grid=document.getElementById('roster-grid');
@@ -948,7 +971,8 @@ function loadHero(idx){
   const ud=getUserData();
   if(!ud.heroes[idx]){toast('Hero not found!');return;}
   ud.activeIdx=idx;
-  stoSet('mb_'+currentUser.username,ud);
+  userDataCache=ud;
+  if(fbDb&&currentUser)fbDb.ref('users/'+currentUser.uid+'/activeIdx').set(idx).catch(()=>{});
   G={...defaultGame(),...ud.heroes[idx]};
   goScreen('hub');
 }
@@ -960,7 +984,14 @@ function deleteHero(idx){
   if(!confirm(`Delete "${h.hero.name}" permanently? This cannot be undone.`))return;
   ud.heroes.splice(idx,1);
   if(ud.activeIdx>=ud.heroes.length)ud.activeIdx=Math.max(0,ud.heroes.length-1);
-  stoSet('mb_'+currentUser.username,ud);
+  userDataCache=ud;
+  if(fbDb&&currentUser){
+    fbDb.ref('users/'+currentUser.uid).set({
+      displayName:currentUser.displayName,
+      heroes:ud.heroes,
+      activeIdx:ud.activeIdx
+    }).catch(()=>{});
+  }
   if(ud.heroes.length>0){G={...defaultGame(),...ud.heroes[ud.activeIdx]};}
   else{G=defaultGame();}
   toast('Hero deleted.');
@@ -979,7 +1010,7 @@ function goScreen(id){
   if(id==='lobby')  renderLobby();
   if(id==='roster') renderRoster();
   if(id==='title'){
-    document.getElementById('title-user').textContent='Signed in as: '+currentUser?.username;
+    document.getElementById('title-user').textContent='Signed in as: '+currentUser?.displayName;
   }
 }
 
@@ -1019,7 +1050,14 @@ function createHero(){
   const newHero={...defaultGame(),hero:{name,classId:selectedClass}};
   ud.heroes.push(newHero);
   ud.activeIdx=ud.heroes.length-1;
-  stoSet('mb_'+currentUser.username,ud);
+  userDataCache=ud;
+  if(fbDb&&currentUser){
+    fbDb.ref('users/'+currentUser.uid).set({
+      displayName:currentUser.displayName,
+      heroes:ud.heroes,
+      activeIdx:ud.activeIdx
+    }).catch(()=>{});
+  }
   G=newHero;
   document.getElementById('hero-name').value='';
   goScreen('hub');
@@ -1055,7 +1093,7 @@ function renderHub(){
   const s=heroStats();
   const cls=CLASSES.find(c=>c.id===G.hero.classId);
   document.getElementById('hub-pts').textContent=G.points;
-  document.getElementById('hub-username').textContent=currentUser?.username||'';
+  document.getElementById('hub-username').textContent=currentUser?.displayName||'';
   const xpNeed=s.level*10, xpHave=G.totalCorrect%xpNeed;
   document.getElementById('char-card').innerHTML=`
     <div class="char-emo">${cls.e}</div>
@@ -2018,7 +2056,7 @@ function hatchEgg(id){
 }
 function openLeaderboard(){
   if(G.hero&&currentUser){
-    stoSet('mb_lb_'+currentUser.username,{
+    stoSet('mb_lb_'+currentUser.uid,{
       name:G.hero.name,classId:G.hero.classId,wins:G.wins,
       correct:G.totalCorrect,streak:G.bestStreak,pts:G.points
     });
@@ -2070,8 +2108,17 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-document.getElementById('auth-btn').dataset.tab='login';
 // Screen is already 'auth' by default
+
+// ── Bootstrap ──
+(function(){
+  if(!FIREBASE_CONFIG.apiKey){
+    document.getElementById('auth-loading').style.display='none';
+    document.getElementById('auth-setup').style.display='block';
+  } else {
+    initFirebase();
+  }
+})();
 </script>
 </body>
 </html>
