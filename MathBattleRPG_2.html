@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathBattle RPG</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --gold:   #f2c744;
+  --gold2:  #b8860b;
+  --red:    #e03535;
+  --blue:   #4a9eff;
+  --green:  #3ecf6a;
+  --purple: #c084fc;
+  --bg:     #080810;
+  --bg2:    #0f0f1a;
+  --bg3:    #161625;
+  --panel:  #12121e;
+  --border: #252540;
+  --text:   #e8e2ff;
+  --muted:  #6a6a8a;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Lora',Georgia,serif;overflow-x:hidden;}
+
+/* ── BACKGROUND ── */
+body::before{content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 10%, rgba(100,60,200,.13) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 85% 90%, rgba(30,80,180,.10) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(255,255,255,.015) 60px),
+    repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(255,255,255,.015) 60px);
+  pointer-events:none;z-index:0;}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh;padding:24px 16px;position:relative;z-index:1;
+  animation:fadeUp .35s ease;}
+.screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ── TYPOGRAPHY ── */
+.title-font{font-family:'Cinzel',serif;}
+.mono{font-family:'Share Tech Mono',monospace;}
+
+/* ── BUTTONS ── */
+.btn{font-family:'Cinzel',serif;border:none;border-radius:8px;padding:13px 24px;font-size:.88rem;
+  letter-spacing:1px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;width:100%;}
+.btn::after{content:'';position:absolute;inset:0;background:#fff;opacity:0;transition:.15s;}
+.btn:hover::after{opacity:.07;}
+.btn:active{transform:scale(.97);}
+.btn-gold{background:linear-gradient(135deg,#9a6b00,#f2c744,#9a6b00);color:#1a0e00;font-weight:900;
+  box-shadow:0 4px 24px rgba(242,199,68,.25);}
+.btn-red{background:linear-gradient(135deg,#6b0808,#e03535,#6b0808);color:#fff;
+  box-shadow:0 4px 20px rgba(224,53,53,.2);}
+.btn-blue{background:linear-gradient(135deg,#0a2a6b,#4a9eff,#0a2a6b);color:#fff;
+  box-shadow:0 4px 20px rgba(74,158,255,.2);}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold);}
+.btn-sm{padding:8px 16px;font-size:.78rem;}
+.btn-auto{width:auto;}
+
+/* ── INPUTS ── */
+input[type=text],input[type=password],input[type=number]{
+  background:var(--bg3);border:1.5px solid var(--border);border-radius:8px;
+  color:var(--text);font-family:'Lora',serif;font-size:1rem;padding:11px 14px;
+  width:100%;outline:none;transition:border-color .18s;}
+input:focus{border-color:var(--gold);}
+label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:7px;}
+.fgroup{margin-bottom:16px;}
+
+/* ── PANELS ── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;}
+.card-title{font-family:'Cinzel',serif;font-size:1.1rem;color:var(--gold);
+  text-align:center;margin-bottom:20px;letter-spacing:.5px;}
+
+/* ── BADGES & CHIPS ── */
+.pts-badge{background:rgba(242,199,68,.08);border:1px solid var(--gold2);border-radius:20px;
+  padding:5px 16px;font-family:'Share Tech Mono',monospace;font-size:.88rem;color:var(--gold);}
+.diff-badge{display:inline-block;padding:3px 12px;border-radius:10px;font-family:'Share Tech Mono',monospace;
+  font-size:.72rem;margin-bottom:16px;}
+.diff-easy{background:rgba(62,207,106,.12);color:var(--green);border:1px solid rgba(62,207,106,.3);}
+.diff-medium{background:rgba(242,199,68,.12);color:var(--gold);border:1px solid rgba(242,199,68,.3);}
+.diff-hard{background:rgba(224,53,53,.12);color:var(--red);border:1px solid rgba(224,53,53,.3);}
+.diff-extreme{background:rgba(192,132,252,.12);color:var(--purple);border:1px solid rgba(192,132,252,.3);}
+
+/* ── BARS ── */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.bar-lbl{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted);width:20px;}
+.bar-track{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.bar-hp{background:linear-gradient(90deg,#7a0808,var(--red));}
+.bar-mp{background:linear-gradient(90deg,#082870,var(--blue));}
+.bar-xp{background:linear-gradient(90deg,#6b4800,var(--gold));}
+.bar-val{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text);min-width:60px;text-align:right;}
+
+/* ── AUTH ── */
+#screen-auth{gap:0;}
+.auth-logo{font-family:'Cinzel',serif;font-size:clamp(2rem,7vw,4rem);color:var(--gold);
+  text-align:center;line-height:1.1;
+  text-shadow:0 0 50px rgba(242,199,68,.4),0 2px 0 rgba(0,0,0,.5);
+  margin-bottom:6px;}
+.auth-sub{font-family:'Share Tech Mono',monospace;font-size:.78rem;color:var(--muted);
+  letter-spacing:3px;text-align:center;margin-bottom:28px;}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.auth-tab{flex:1;background:none;border:none;color:var(--muted);font-family:'Cinzel',serif;
+  font-size:.82rem;padding:10px;cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;}
+.auth-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.auth-err{background:rgba(224,53,53,.1);border:1px solid rgba(224,53,53,.3);color:#ff8888;
+  border-radius:8px;padding:10px 14px;font-size:.85rem;margin-bottom:14px;display:none;}
+.auth-ok{background:rgba(62,207,106,.1);border:1px solid rgba(62,207,106,.3);color:var(--green);
+  border-radius:8px;padding:10px 14px;font-size:.85rem;margin-bottom:14px;display:none;}
+
+/* ── TITLE SCREEN ── */
+#screen-title .hero-btns{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;}
+.stars{font-size:1.6rem;letter-spacing:10px;color:var(--gold);opacity:.7;}
+
+/* ── HUB ── */
+#screen-hub{justify-content:flex-start;padding-top:24px;}
+.hub-header{width:100%;max-width:700px;display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:18px;}
+.hub-title{font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);}
+.char-card{width:100%;max-width:700px;background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:20px;display:flex;gap:18px;align-items:center;margin-bottom:16px;}
+.char-emo{font-size:3.8rem;filter:drop-shadow(0 0 16px rgba(242,199,68,.35));flex-shrink:0;}
+.char-info{flex:1;}
+.char-name-row{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;}
+.char-name{font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);}
+.char-lvl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);
+  background:var(--bg3);border-radius:10px;padding:2px 9px;}
+.mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px;}
+.mini-stat{background:var(--bg3);border-radius:8px;padding:8px;text-align:center;}
+.mini-val{font-family:'Share Tech Mono',monospace;font-size:1rem;color:var(--gold);}
+.mini-lbl{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.hub-grid{width:100%;max-width:700px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.menu-tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:20px 16px;cursor:pointer;text-align:center;transition:all .2s;display:flex;
+  flex-direction:column;align-items:center;gap:8px;}
+.menu-tile:hover{border-color:var(--gold);background:rgba(242,199,68,.04);
+  transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
+.menu-tile-ico{font-size:2.2rem;}
+.menu-tile-title{font-family:'Cinzel',serif;font-size:.88rem;color:var(--gold);}
+.menu-tile-desc{font-size:.78rem;color:var(--muted);}
+
+/* ── TRAIN ── */
+#screen-train{justify-content:flex-start;padding-top:22px;}
+.train-bar{width:100%;max-width:580px;display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:16px;}
+.q-card{width:100%;max-width:580px;background:var(--panel);border:1px solid var(--border);
+  border-radius:16px;padding:30px;text-align:center;margin-bottom:14px;}
+.q-cat{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+.q-text{font-size:clamp(1.6rem,5vw,2.6rem);font-weight:600;margin:16px 0 24px;line-height:1.3;}
+.ans-row{display:flex;gap:10px;}
+.ans-input{font-size:1.3rem;text-align:center;letter-spacing:2px;
+  font-family:'Share Tech Mono',monospace;}
+.feedback{width:100%;max-width:580px;border-radius:10px;padding:13px 20px;text-align:center;
+  font-size:1rem;font-weight:600;display:none;animation:pop .2s ease;}
+.feedback.ok{background:rgba(62,207,106,.12);border:1px solid var(--green);color:var(--green);}
+.feedback.bad{background:rgba(224,53,53,.12);border:1px solid var(--red);color:var(--red);}
+.reward-row{width:100%;max-width:580px;display:flex;gap:10px;}
+.reward-chip{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:9px 14px;font-family:'Share Tech Mono',monospace;font-size:.82rem;flex:1;text-align:center;}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ── SHOP ── */
+#screen-shop{justify-content:flex-start;padding-top:22px;}
+.shop-tabs{display:flex;gap:8px;width:100%;max-width:700px;margin-bottom:14px;}
+.shop-grid{width:100%;max-width:700px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.shop-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;
+  cursor:pointer;transition:all .2s;}
+.shop-card:hover:not(.owned):not(.unaffordable){border-color:var(--gold);transform:translateY(-2px);}
+.shop-card.owned{border-color:rgba(62,207,106,.4);cursor:default;}
+.shop-card.unaffordable{opacity:.55;cursor:default;}
+.shop-ico{font-size:1.8rem;margin-bottom:7px;}
+.shop-name{font-family:'Cinzel',serif;font-size:.82rem;color:var(--gold);margin-bottom:4px;}
+.shop-desc{font-size:.78rem;color:var(--muted);margin-bottom:8px;}
+.shop-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
+.tag{font-family:'Share Tech Mono',monospace;font-size:.62rem;padding:1px 5px;border-radius:4px;}
+.tag-mp{background:rgba(74,158,255,.15);color:var(--blue);border:1px solid rgba(74,158,255,.3);}
+.tag-cd{background:rgba(150,150,200,.12);color:#a0a0d0;border:1px solid rgba(150,150,200,.3);}
+.tag-free{background:rgba(62,207,106,.1);color:var(--green);border:1px solid rgba(62,207,106,.3);}
+.shop-cost{font-family:'Share Tech Mono',monospace;font-size:.82rem;color:var(--gold2);}
+.shop-lvl{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--muted);margin-top:3px;}
+
+/* ── LOBBY ── */
+#screen-lobby{justify-content:flex-start;padding-top:22px;gap:14px;}
+.divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-family:'Share Tech Mono',monospace;
+  font-size:.78rem;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.room-code{font-family:'Share Tech Mono',monospace;font-size:2.2rem;color:var(--gold);
+  letter-spacing:10px;text-align:center;padding:18px;background:var(--bg3);border-radius:10px;
+  border:1px dashed var(--gold2);margin-bottom:10px;}
+.waiting-txt{text-align:center;color:var(--muted);font-size:.88rem;animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* ── BATTLE ── */
+#screen-battle{padding:12px;justify-content:flex-start;}
+.battle-wrap{width:100%;max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:12px;}
+.combatants{display:flex;gap:10px;align-items:stretch;}
+.comb-card{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.comb-card.enemy{border-color:rgba(224,53,53,.25);}
+.comb-name{font-family:'Cinzel',serif;font-size:.82rem;margin-bottom:8px;}
+.comb-name.p{color:var(--blue);}
+.comb-name.e{color:var(--red);text-align:right;}
+.comb-emo{font-size:2.6rem;text-align:center;display:block;margin:6px 0;}
+.vs-col{display:flex;align-items:center;justify-content:center;padding:0 6px;}
+.vs-txt{font-family:'Cinzel',serif;font-size:1.5rem;color:var(--gold);
+  text-shadow:0 0 20px rgba(242,199,68,.5);}
+.battle-log{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:12px;height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+.log-line{font-size:.83rem;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.log-player{color:var(--blue);}
+.log-enemy{color:var(--red);}
+.log-system{color:var(--muted);font-style:italic;}
+.battle-turn-info{text-align:center;font-family:'Share Tech Mono',monospace;font-size:.8rem;}
+.ab-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.ab-btn{background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;
+  padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;
+  color:var(--text);text-align:left;transition:all .18s;position:relative;font-family:'Lora',serif;}
+.ab-btn:hover:not(:disabled){border-color:var(--gold);background:rgba(242,199,68,.06);}
+.ab-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ab-ico{font-size:1.4rem;flex-shrink:0;}
+.ab-name{font-family:'Cinzel',serif;font-size:.72rem;color:var(--gold);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ab-desc{font-size:.7rem;color:var(--muted);}
+.cd-overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;
+  font-size:1.1rem;color:var(--muted);pointer-events:none;}
+
+/* ── RESULT ── */
+#screen-result{gap:22px;text-align:center;}
+.result-ico{font-size:5rem;animation:bounceIn .5s ease;}
+@keyframes bounceIn{0%{transform:scale(0)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+.result-title{font-family:'Cinzel',serif;font-size:2.4rem;}
+.reward-badges{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.reward-badge{background:rgba(242,199,68,.08);border:1px solid var(--gold2);
+  border-radius:8px;padding:10px 22px;font-family:'Share Tech Mono',monospace;
+  color:var(--gold);font-size:.88rem;}
+
+/* ── CLASS GRID ── */
+.class-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+.class-card{background:var(--bg3);border:2px solid var(--border);border-radius:10px;
+  padding:12px 8px;text-align:center;cursor:pointer;transition:all .2s;}
+.class-card:hover{border-color:var(--gold);}
+.class-card.sel{border-color:var(--gold);background:rgba(242,199,68,.07);
+  box-shadow:0 0 20px rgba(242,199,68,.12);}
+.class-emo{font-size:2.2rem;display:block;margin-bottom:5px;}
+.class-name{font-family:'Cinzel',serif;font-size:.7rem;color:var(--gold);}
+.class-dsc{font-size:.68rem;color:var(--muted);margin-top:3px;}
+
+/* ── EGG SYSTEM ── */
+.egg-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;transition:all .2s;cursor:pointer;}
+.egg-card:hover{border-color:var(--purple);transform:translateY(-3px);box-shadow:0 8px 24px rgba(192,132,252,.15);}
+.egg-card.locked{opacity:.4;cursor:default;filter:grayscale(1);}
+.egg-card.locked:hover{transform:none;box-shadow:none;}
+.egg-card.hatched{border-color:var(--green);}
+.egg-ico{font-size:3rem;margin-bottom:8px;display:block;}
+.egg-ico.wobble{animation:wobble 0.5s ease;}
+@keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.egg-name{font-family:'Cinzel',serif;font-size:.85rem;color:var(--purple);margin-bottom:4px;}
+.egg-req{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);}
+.pet-bonus{font-size:.75rem;color:var(--green);margin-top:4px;}
+
+/* ── LEADERBOARD MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;
+  display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeUp .25s ease;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  padding:26px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;}
+
+/* ── DAMAGE FLOAT ── */
+.dmg-float{position:fixed;font-family:'Cinzel',serif;font-size:1.9rem;font-weight:900;
+  pointer-events:none;z-index:1000;animation:floatUp 1.1s ease forwards;}
+.dmg-player{color:var(--red);text-shadow:0 0 10px rgba(224,53,53,.5);}
+.dmg-enemy{color:var(--green);text-shadow:0 0 10px rgba(62,207,106,.5);}
+.dmg-crit{color:var(--gold);font-size:2.2rem;}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-70px) scale(.7)}}
+
+/* ── SHAKE ── */
+.shake{animation:shk .3s ease;}
+@keyframes shk{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:11px 24px;font-size:.9rem;z-index:999;
+  transition:transform .3s ease,opacity .3s ease;opacity:0;
+  max-width:88vw;text-align:center;pointer-events:none;}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:500px){
+  .class-grid{grid-template-columns:repeat(2,1fr);}
+  .hub-grid{grid-template-columns:1fr;}
+  .shop-grid{grid-template-columns:1fr;}
+  .ab-grid{grid-template-columns:1fr;}
+  .combatants{gap:6px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ AUTH ══════════════════════ -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-logo">MathBattle<br>RPG</div>
+  <div class="auth-sub">⚔ MASTER MATH · FORGE POWER · CONQUER ⚔</div>
+  <div class="card" style="width:100%;max-width:380px;">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab"        id="tab-reg"   onclick="switchAuthTab('register')">Create Account</button>
+    </div>
+    <div id="auth-err" class="auth-err"></div>
+    <div id="auth-ok"  class="auth-ok"></div>
+    <div class="fgroup">
+      <label class="lbl">Username</label>
+      <input type="text" id="auth-user" placeholder="Your username…" maxlength="20" autocomplete="username">
+    </div>
+    <div class="fgroup" style="margin-bottom:20px">
+      <label class="lbl">Password</label>
+      <input type="password" id="auth-pass" placeholder="Your password…" maxlength="40"
+        autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    <button class="btn btn-gold" id="auth-btn" onclick="submitAuth()">Sign In</button>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;">
+      Your hero is saved to your account
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════ TITLE ══════════════════════ -->
+<div id="screen-title" class="screen">
+  <div class="stars">✦ ✦ ✦</div>
+  <div class="auth-logo" style="margin-bottom:8px;">MathBattle<br>RPG</div>
+  <div class="auth-sub">⚔ MASTER MATH · FORGE POWER · CONQUER ⚔</div>
+  <div class="hero-btns">
+    <button class="btn btn-gold" onclick="goScreen('create')">⚔ Create Hero</button>
+    <button class="btn btn-ghost" onclick="goScreen('lobby')">⚡ Quick Battle</button>
+    <button class="btn btn-ghost btn-sm" style="font-size:.75rem;" onclick="signOut()">← Switch Account</button>
+  </div>
+  <p id="title-user" class="mono" style="font-size:.75rem;color:var(--muted);margin-top:16px;"></p>
+</div>
+
+<!-- ══════════════════════ CREATE HERO ══════════════════════ -->
+<div id="screen-create" class="screen">
+  <div class="card" style="width:100%;max-width:480px;">
+    <div class="card-title">⚔ Forge Your Hero</div>
+    <div class="fgroup">
+      <label class="lbl">Hero Name</label>
+      <input type="text" id="hero-name" placeholder="Enter your name…" maxlength="16"
+        onkeydown="if(event.key==='Enter')createHero()">
+    </div>
+    <label class="lbl" style="margin-bottom:10px;">Choose Class</label>
+    <div class="class-grid" id="class-grid"></div>
+    <div id="class-preview" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:18px;font-size:.8rem;color:var(--muted);min-height:60px;"></div>
+    <button class="btn btn-gold" onclick="createHero()">Begin Journey</button>
+    <br><br>
+    <button class="btn btn-ghost" onclick="goScreen('title')">← Back</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ HUB ══════════════════════ -->
+<div id="screen-hub" class="screen">
+  <div class="hub-header">
+    <div class="hub-title">⚔ Hero's Hall</div>
+    <div style="display:flex;align-items:center;gap:9px;">
+      <span class="mono" id="hub-username" style="font-size:.72rem;color:var(--muted);"></span>
+      <div class="pts-badge">✦ <span id="hub-pts">0</span> pts</div>
+    </div>
+  </div>
+  <div class="char-card" id="char-card"></div>
+  <div class="hub-grid">
+    <div class="menu-tile" onclick="goScreen('train')">
+      <div class="menu-tile-ico">📐</div>
+      <div class="menu-tile-title">Train</div>
+      <div class="menu-tile-desc">Answer math to earn points & XP</div>
+    </div>
+    <div class="menu-tile" onclick="goScreen('shop')">
+      <div class="menu-tile-ico">🔮</div>
+      <div class="menu-tile-title">Shop</div>
+      <div class="menu-tile-desc">Buy abilities & upgrade your stats</div>
+    </div>
+    <div class="menu-tile" onclick="goScreen('lobby')">
+      <div class="menu-tile-ico">⚔️</div>
+      <div class="menu-tile-title">Battle</div>
+      <div class="menu-tile-desc">Fight bots or challenge players</div>
+    </div>
+    <div class="menu-tile" onclick="openLeaderboard()">
+      <div class="menu-tile-ico">🏆</div>
+      <div class="menu-tile-title">Rankings</div>
+      <div class="menu-tile-desc">See the top math warriors</div>
+    </div>
+    <div class="menu-tile" onclick="openEggs()">
+      <div class="menu-tile-ico">🥚</div>
+      <div class="menu-tile-title">Eggs & Pets</div>
+      <div class="menu-tile-desc">Hatch eggs earned from battle wins</div>
+    </div>
+    <div class="menu-tile" onclick="signOut()" style="border-color:rgba(224,53,53,.15);grid-column:span 2;">
+      <div class="menu-tile-ico">🚪</div>
+      <div class="menu-tile-title" style="color:var(--red);">Sign Out</div>
+      <div class="menu-tile-desc">Save &amp; switch account</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ TRAIN ══════════════════════ -->
+<div id="screen-train" class="screen">
+  <div class="train-bar">
+    <button class="btn btn-ghost btn-auto btn-sm" onclick="goScreen('hub')">← Hub</button>
+    <span class="mono" style="font-size:.85rem;color:var(--gold);">🔥 Streak: <span id="streak-n">0</span></span>
+    <span class="mono" style="font-size:.82rem;color:var(--muted);">❓ #<span id="q-num">1</span></span>
+  </div>
+  <div class="q-card">
+    <div class="q-cat" id="q-cat">Arithmetic</div>
+    <div class="diff-badge diff-easy" id="q-diff">Easy</div>
+    <div class="q-text" id="q-text">Loading…</div>
+    <div class="ans-row">
+      <input type="text" class="ans-input" id="ans-input" placeholder="Your answer…"
+        onkeydown="if(event.key==='Enter')checkAnswer()">
+      <button class="btn btn-gold btn-auto" style="padding:11px 20px;flex-shrink:0;"
+        onclick="checkAnswer()">⚡</button>
+    </div>
+  </div>
+  <div class="feedback" id="feedback"></div>
+  <div class="reward-row">
+    <div class="reward-chip">✦ <span id="t-pts">0</span> pts</div>
+    <div class="reward-chip">⚡ <span id="t-xp">0</span> correct</div>
+    <div class="reward-chip">📊 <span id="t-acc">—</span> acc</div>
+  </div>
+</div>
+
+<!-- ══════════════════════ SHOP ══════════════════════ -->
+<div id="screen-shop" class="screen">
+  <div class="train-bar" style="width:100%;max-width:700px;">
+    <button class="btn btn-ghost btn-auto btn-sm" onclick="goScreen('hub')">← Hub</button>
+    <span class="title-font" style="font-size:1.1rem;color:var(--gold);">🔮 Shop</span>
+    <div class="pts-badge">✦ <span id="shop-pts">0</span> pts</div>
+  </div>
+  <div class="shop-tabs">
+    <button class="btn btn-gold" id="tab-ab-btn" onclick="switchShopTab('ab')" style="flex:1;padding:10px;">✨ Abilities</button>
+    <button class="btn btn-ghost" id="tab-st-btn" onclick="switchShopTab('st')" style="flex:1;padding:10px;">⚔ Stat Upgrades</button>
+  </div>
+  <div class="shop-grid" id="shop-grid"></div>
+</div>
+
+<!-- ══════════════════════ LOBBY ══════════════════════ -->
+<div id="screen-lobby" class="screen">
+  <div class="train-bar" style="width:100%;max-width:460px;">
+    <button class="btn btn-ghost btn-auto btn-sm" onclick="goScreen(G.hero?'hub':'title')">← Back</button>
+    <span class="title-font" style="font-size:1.1rem;color:var(--gold);">⚔ Battle Lobby</span>
+    <div></div>
+  </div>
+  <div id="lobby-main" style="width:100%;max-width:460px;display:flex;flex-direction:column;gap:12px;">
+    <button class="btn btn-red" onclick="startBotBattle()">🤖 Fight a Bot</button>
+    <div class="divider">or multiplayer</div>
+    <div class="card">
+      <div class="card-title" style="font-size:.95rem;">Create / Join Room</div>
+      <div class="room-code" id="room-code-disp">- - - -</div>
+      <button class="btn btn-blue" onclick="createRoom()" style="margin-bottom:16px;">🔗 Generate Room Code</button>
+      <div class="divider">or join</div>
+      <div style="display:flex;gap:8px;margin-top:12px;margin-bottom:12px;">
+        <input type="text" id="join-code" placeholder="XXXX" maxlength="4"
+          style="text-align:center;letter-spacing:4px;text-transform:uppercase;">
+        <button class="btn btn-gold btn-auto" style="padding:10px 18px;flex-shrink:0;" onclick="joinRoom()">Join</button>
+      </div>
+      <div class="divider">or</div>
+      <button class="btn btn-ghost" onclick="joinRandom()" style="margin-top:12px;">🌐 Join Random Battle</button>
+    </div>
+  </div>
+  <div id="lobby-wait" style="display:none;text-align:center;">
+    <div class="waiting-txt" id="wait-msg">Waiting…</div>
+    <br>
+    <button class="btn btn-ghost btn-auto btn-sm" onclick="cancelWait()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ BATTLE ══════════════════════ -->
+<div id="screen-battle" class="screen" style="justify-content:flex-start;padding:14px;">
+  <div class="battle-wrap">
+    <!-- combatants -->
+    <div class="combatants">
+      <div class="comb-card" id="player-panel">
+        <div class="comb-name p" id="b-pname">Hero</div>
+        <div class="comb-emo" id="b-pemo">⚔️</div>
+        <div id="b-pbars"></div>
+      </div>
+      <div class="vs-col"><div class="vs-txt">VS</div></div>
+      <div class="comb-card enemy" id="enemy-panel">
+        <div class="comb-name e" id="b-ename">Enemy</div>
+        <div class="comb-emo" id="b-eemo">👹</div>
+        <div id="b-ebars"></div>
+      </div>
+    </div>
+    <!-- log -->
+    <div class="battle-log" id="battle-log"></div>
+    <!-- abilities -->
+    <div class="battle-turn-info" id="b-turn-info" style="color:var(--green);">Your Turn!</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--blue);text-align:center;margin-bottom:6px;">
+      MP: <span id="b-mp">0</span>/<span id="b-mpmax">0</span>
+    </div>
+    <div class="ab-grid" id="ab-grid"></div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:10px;"
+      onclick="endBattle();goScreen('hub');">Flee Battle</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ RESULT ══════════════════════ -->
+<div id="screen-result" class="screen">
+  <div class="result-ico" id="res-ico">🏆</div>
+  <div class="result-title" id="res-title">Victory!</div>
+  <p id="res-desc" style="color:var(--muted);font-size:1rem;"></p>
+  <div class="reward-badges" id="res-rewards"></div>
+  <button class="btn btn-gold" style="max-width:280px;" onclick="endBattle();goScreen('hub');">
+    Return to Hall
+  </button>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ══════════════════════ SCRIPT ══════════════════════ -->
+<script>
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+const CLASSES=[
+  {id:'warrior',name:'Warrior',e:'⚔️', d:'High HP & damage',  hp:120,mp:60, atk:15,def:8, spd:10},
+  {id:'mage',   name:'Mage',   e:'🔮', d:'High MP & spell dmg',hp:80, mp:120,atk:20,def:5, spd:12},
+  {id:'rogue',  name:'Rogue',  e:'🗡️', d:'Speed & crits',      hp:90, mp:80, atk:18,def:6, spd:18},
+  {id:'paladin',name:'Paladin',e:'🛡️', d:'Balanced & tanky',   hp:110,mp:90, atk:14,def:12,spd:9},
+  {id:'archer', name:'Archer', e:'🏹', d:'Range & accuracy',   hp:85, mp:70, atk:17,def:7, spd:15},
+  {id:'shaman', name:'Shaman', e:'⚡', d:'Elemental fury',     hp:95, mp:100,atk:19,def:6, spd:11},
+];
+
+const UPGRADES=[
+  {id:'hp',  name:'Iron Vitality',   icon:'❤️',  desc:'+25 max HP',       cost:50, max:10,stat:'hp',  amt:25},
+  {id:'atk', name:'Sharp Blade',     icon:'⚔️',  desc:'+5 attack',        cost:60, max:10,stat:'atk', amt:5},
+  {id:'def', name:'Steel Armor',     icon:'🛡️',  desc:'+4 defense',       cost:55, max:10,stat:'def', amt:4},
+  {id:'spd', name:'Swift Boots',     icon:'💨',  desc:'+3 speed',         cost:45, max:10,stat:'spd', amt:3},
+  {id:'mp',  name:'Arcane Surge',    icon:'🔮',  desc:'+20 max MP',       cost:50, max:10,stat:'mp',  amt:20},
+  {id:'crit',name:'Crit Mastery',    icon:'💥',  desc:'+5% crit chance',  cost:80, max:5, stat:'crit',amt:5},
+];
+
+// All abilities — each has a 'classes' list of who can unlock/use it
+const ABILITIES=[
+  // ── UNIVERSAL (free basic, every class) ──
+  {id:'basicatk',   name:'Basic Attack',    icon:'👊', desc:'100% damage — always free',                cost:0,   mpCost:0,  cd:0, damage:1.0, heal:0,    eff:'damage',  free:true,  classes:['warrior','mage','rogue','paladin','archer','shaman']},
+
+  // ── WARRIOR ──
+  {id:'slash',      name:'Power Slash',     icon:'⚔️',  desc:'150% damage — raw steel fury',             cost:80,  mpCost:0,  cd:0, damage:1.5, heal:0,    eff:'damage',              classes:['warrior']},
+  {id:'shield',     name:'Iron Shield',     icon:'🛡️',  desc:'Block the next enemy attack completely',    cost:150, mpCost:20, cd:3, damage:0,   heal:0,    eff:'shield',              classes:['warrior','paladin']},
+  {id:'berserk',    name:'Berserk Rage',    icon:'😤', desc:'250% damage — take 20 recoil',              cost:250, mpCost:10, cd:4, damage:2.5, heal:0,    eff:'berserk',             classes:['warrior']},
+  {id:'warshout',   name:'Battle Shout',    icon:'📣', desc:'120% dmg + weakens enemy attack',           cost:180, mpCost:0,  cd:2, damage:1.2, heal:0,    eff:'slow',                classes:['warrior']},
+  {id:'whirlwind',  name:'Whirlwind',       icon:'🌀', desc:'90% dmg × 3 rapid spins',                  cost:200, mpCost:15, cd:3, damage:2.7, heal:0,    eff:'damage',              classes:['warrior']},
+  {id:'warcry',     name:'War Cry',         icon:'😡', desc:'Boost own attack +30% for 2 turns',         cost:160, mpCost:0,  cd:3, damage:0,   heal:0,    eff:'atk_boost',           classes:['warrior']},
+  {id:'groundslam', name:'Ground Slam',     icon:'💢', desc:'200% dmg + stuns enemy 1 turn',             cost:240, mpCost:20, cd:4, damage:2.0, heal:0,    eff:'stun',                classes:['warrior']},
+
+  // ── MAGE ──
+  {id:'fireball',   name:'Fireball',        icon:'🔥', desc:'180% fire damage — costs MP',               cost:120, mpCost:20, cd:1, damage:1.8, heal:0,    eff:'damage',              classes:['mage']},
+  {id:'lightning',  name:'Lightning Bolt',  icon:'⚡', desc:'200% damage + stuns enemy 1 turn',          cost:200, mpCost:30, cd:3, damage:2.0, heal:0,    eff:'stun',                classes:['mage','shaman']},
+  {id:'blizzard',   name:'Blizzard',        icon:'❄️',  desc:'120% damage + freezes enemy (-20% atk)',    cost:180, mpCost:25, cd:2, damage:1.2, heal:0,    eff:'slow',                classes:['mage']},
+  {id:'arcaneblast',name:'Arcane Blast',    icon:'🔮', desc:'220% pure magic damage',                    cost:280, mpCost:40, cd:3, damage:2.2, heal:0,    eff:'damage',              classes:['mage']},
+  {id:'meteor',     name:'Meteor Strike',   icon:'☄️',  desc:'300% massive impact — long cooldown',       cost:350, mpCost:50, cd:5, damage:3.0, heal:0,    eff:'damage',              classes:['mage']},
+  {id:'timelock',   name:'Time Lock',       icon:'⏳', desc:'Stun enemy 2 turns + 80% damage',           cost:300, mpCost:45, cd:5, damage:0.8, heal:0,    eff:'stun2',               classes:['mage']},
+  {id:'manaburn',   name:'Mana Burn',       icon:'💙', desc:'Drain enemy MP + 130% damage',              cost:200, mpCost:20, cd:2, damage:1.3, heal:0,    eff:'manaburn',            classes:['mage']},
+
+  // ── ROGUE ──
+  {id:'backstab',   name:'Backstab',        icon:'🗡️',  desc:'170% damage + 20% crit chance boost',      cost:100, mpCost:0,  cd:1, damage:1.7, heal:0,    eff:'crit',                classes:['rogue']},
+  {id:'drain',      name:'Drain Life',      icon:'🩸', desc:'100% dmg + steal 50% as HP',               cost:160, mpCost:20, cd:2, damage:1.0, heal:0.5,  eff:'drain',               classes:['rogue','shaman']},
+  {id:'smoke',      name:'Smoke Bomb',      icon:'💨', desc:'Block next attack + deal 80% counter',     cost:170, mpCost:0,  cd:3, damage:0.8, heal:0,    eff:'smoke',               classes:['rogue']},
+  {id:'deathmark',  name:'Death Mark',      icon:'☠️',  desc:'300% crit guaranteed — long cooldown',     cost:300, mpCost:0,  cd:5, damage:3.0, heal:0,    eff:'damage',              classes:['rogue']},
+  {id:'shadowstep', name:'Shadow Step',     icon:'🌑', desc:'Dodge + 140% damage next turn auto',       cost:200, mpCost:10, cd:3, damage:1.4, heal:0,    eff:'smoke',               classes:['rogue']},
+  {id:'poisonblade',name:'Poison Blade',    icon:'🟢', desc:'110% dmg + poison DoT for 3 turns',        cost:180, mpCost:10, cd:2, damage:1.1, heal:0,    eff:'dot',                 classes:['rogue']},
+  {id:'fan',        name:'Fan of Knives',   icon:'🔪', desc:'60% dmg × 4 rapid throws',                 cost:220, mpCost:15, cd:3, damage:2.4, heal:0,    eff:'damage',              classes:['rogue']},
+
+  // ── PALADIN ──
+  {id:'holyblow',   name:'Holy Strike',     icon:'✝️',  desc:'140% holy damage',                         cost:90,  mpCost:10, cd:0, damage:1.4, heal:0,    eff:'damage',              classes:['paladin']},
+  {id:'heal',       name:'Healing Light',   icon:'💚', desc:'Restore 30% of your max HP',               cost:100, mpCost:15, cd:2, damage:0,   heal:0.3,  eff:'heal',                classes:['paladin','shaman']},
+  {id:'divinewave', name:'Divine Wave',     icon:'✨', desc:'100% dmg + heal 20% HP simultaneously',    cost:200, mpCost:25, cd:3, damage:1.0, heal:0.2,  eff:'divheal',             classes:['paladin']},
+  {id:'consecrate', name:'Consecrate',      icon:'🌟', desc:'130% dmg + stuns enemy for 1 turn',        cost:220, mpCost:30, cd:3, damage:1.3, heal:0,    eff:'stun',                classes:['paladin']},
+  {id:'holyaura',   name:'Holy Aura',       icon:'😇', desc:'Heal 50% HP — powerful but slow CD',       cost:250, mpCost:40, cd:5, damage:0,   heal:0.5,  eff:'heal',                classes:['paladin']},
+  {id:'smitefury',  name:'Smite Fury',      icon:'⚡', desc:'180% holy lightning damage',               cost:230, mpCost:30, cd:2, damage:1.8, heal:0,    eff:'damage',              classes:['paladin']},
+  {id:'sanctuary',  name:'Sanctuary',       icon:'🏰', desc:'Shield + heal 15% HP simultaneously',      cost:280, mpCost:35, cd:4, damage:0,   heal:0.15, eff:'shieldheal',          classes:['paladin']},
+
+  // ── ARCHER ──
+  {id:'powershot',  name:'Power Shot',      icon:'🏹', desc:'160% damage — precise aim',                cost:90,  mpCost:0,  cd:0, damage:1.6, heal:0,    eff:'damage',              classes:['archer']},
+  {id:'multishot',  name:'Multi-Shot',      icon:'🎯', desc:'80% damage × 3 rapid arrows',              cost:150, mpCost:10, cd:2, damage:2.4, heal:0,    eff:'damage',              classes:['archer']},
+  {id:'poisonarrow',name:'Poison Arrow',    icon:'🪲', desc:'110% dmg + weakens enemy for 2 turns',     cost:180, mpCost:15, cd:2, damage:1.1, heal:0,    eff:'slow',                classes:['archer']},
+  {id:'eagleeye',   name:'Eagle Eye',       icon:'🦅', desc:'200% guaranteed crit shot',                cost:250, mpCost:20, cd:4, damage:2.0, heal:0,    eff:'damage',              classes:['archer']},
+  {id:'rain',       name:'Rain of Arrows',  icon:'🌧️', desc:'60% dmg × 5 arrows raining down',          cost:280, mpCost:25, cd:4, damage:3.0, heal:0,    eff:'damage',              classes:['archer']},
+  {id:'snipe',      name:'Sniper Shot',     icon:'🔭', desc:'280% damage — super precise',              cost:300, mpCost:30, cd:5, damage:2.8, heal:0,    eff:'damage',              classes:['archer']},
+  {id:'traps',      name:'Bear Trap',       icon:'🪤', desc:'80% dmg + stuns enemy 1 turn',             cost:170, mpCost:0,  cd:3, damage:0.8, heal:0,    eff:'stun',                classes:['archer']},
+
+  // ── SHAMAN ──
+  {id:'earthshock', name:'Earth Shock',     icon:'🌍', desc:'150% earth damage — no MP cost',           cost:100, mpCost:0,  cd:1, damage:1.5, heal:0,    eff:'damage',              classes:['shaman']},
+  {id:'spiritwave', name:'Spirit Wave',     icon:'🌊', desc:'Heal 25% HP + deal 80% spirit damage',     cost:180, mpCost:20, cd:2, damage:0.8, heal:0.25, eff:'divheal',             classes:['shaman']},
+  {id:'stormcall',  name:'Storm Call',      icon:'🌩️', desc:'240% lightning damage + stun',             cost:280, mpCost:35, cd:4, damage:2.4, heal:0,    eff:'stun',                classes:['shaman']},
+  {id:'totemic',    name:'Totemic Fury',    icon:'🪬', desc:'110% dmg + burn DoT for 3 turns',          cost:240, mpCost:25, cd:3, damage:1.1, heal:0,    eff:'dot',                 classes:['shaman']},
+  {id:'lava',       name:'Lava Burst',      icon:'🌋', desc:'200% molten damage',                       cost:220, mpCost:30, cd:2, damage:2.0, heal:0,    eff:'damage',              classes:['shaman']},
+  {id:'ancestral',  name:'Ancestral Spirit',icon:'👻', desc:'Heal 40% HP — ancestral blessing',         cost:260, mpCost:35, cd:4, damage:0,   heal:0.4,  eff:'heal',                classes:['shaman']},
+  {id:'thunder',    name:'Thunder Clap',    icon:'💥', desc:'170% dmg + weakens enemy',                 cost:200, mpCost:20, cd:2, damage:1.7, heal:0,    eff:'slow',                classes:['shaman']},
+];
+
+// Egg system — milestone wins unlock eggs
+const EGGS=[
+  {wins:5,  id:'egg_fire',   name:'Fire Egg',    icon:'🔴', hatch:'🐉', pet:'Emberclaw',   desc:'A fiery dragon hatchling',    bonus:'atk',bonusAmt:8},
+  {wins:10, id:'egg_ice',    name:'Ice Egg',     icon:'🔵', hatch:'🐧', pet:'Frostbeak',   desc:'A chilly ice penguin',        bonus:'def',bonusAmt:6},
+  {wins:20, id:'egg_storm',  name:'Storm Egg',   icon:'🟡', hatch:'⚡', pet:'Zapwing',     desc:'A lightning phoenix',         bonus:'spd',bonusAmt:10},
+  {wins:35, id:'egg_shadow', name:'Shadow Egg',  icon:'⚫', hatch:'🦇', pet:'Nightshroud', desc:'A shadow bat familiar',       bonus:'crit',bonusAmt:8},
+  {wins:50, id:'egg_divine', name:'Divine Egg',  icon:'⚪', hatch:'🦄', pet:'Luminos',     desc:'A divine unicorn spirit',     bonus:'hp', bonusAmt:50},
+  {wins:75, id:'egg_cosmic', name:'Cosmic Egg',  icon:'🌌', hatch:'🐲', pet:'Galaxon',     desc:'A cosmic dragon — the rarest',bonus:'atk',bonusAmt:20},
+];
+
+const BOTS=[
+  {name:'Slime Jr.',   e:'🟢',hp:60, atk:8, def:2, spd:5, crit:5},
+  {name:'Iron Golem',  e:'⚙️', hp:120,atk:14,def:8, spd:4, crit:8},
+  {name:'Dark Wizard', e:'🧙', hp:100,atk:20,def:5, spd:10,crit:12},
+  {name:'Dragon Lord', e:'🐉', hp:180,atk:28,def:12,spd:14,crit:15},
+  {name:'Shadow Titan',e:'💀', hp:240,atk:35,def:16,spd:16,crit:18},
+];
+
+const BOT_PAT=[
+  ['basicatk'],
+  ['basicatk','basicatk','slash'],
+  ['basicatk','fireball','basicatk','heal'],
+  ['slash','fireball','lightning','basicatk'],
+  ['berserk','lightning','fireball','slash','heal'],
+];
+
+const CATS=['Arithmetic','Multiplication','Division','Fractions','Algebra','Powers'];
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let currentUser=null;
+let G=defaultGame();
+let selectedClass=CLASSES[0].id;
+let shopTab='ab';
+let currentQ=null;
+let battle=null;
+let waitInterval=null;
+let myRoomCode=null;
+let toastTimer=null;
+
+function defaultGame(){
+  return{hero:null,points:0,totalCorrect:0,totalAnswered:0,wins:0,losses:0,
+    upgrades:{},abilities:[],eggs:[],pets:[],streak:0,bestStreak:0,questionsAnswered:0};
+}
+
+// ═══════════════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════════════
+function stoGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
+function stoSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+function saveGame(){if(currentUser)stoSet('mb_'+currentUser.username,G);}
+
+function hashPw(pw){
+  let h=5381;
+  for(let i=0;i<pw.length;i++)h=(h*33)^pw.charCodeAt(i);
+  return (h>>>0).toString(36);
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════
+let authMode='login';
+function switchAuthTab(t){
+  authMode=t;
+  document.getElementById('tab-login').className='auth-tab'+(t==='login'?' active':'');
+  document.getElementById('tab-reg').className='auth-tab'+(t==='register'?' active':'');
+  document.getElementById('auth-btn').textContent=t==='login'?'Sign In':'Create Account';
+  document.getElementById('auth-err').style.display='none';
+  document.getElementById('auth-ok').style.display='none';
+}
+
+function showAuthErr(m){const e=document.getElementById('auth-err');e.textContent=m;e.style.display='block';document.getElementById('auth-ok').style.display='none';}
+function showAuthOk(m){const e=document.getElementById('auth-ok');e.textContent=m;e.style.display='block';document.getElementById('auth-err').style.display='none';}
+
+function submitAuth(){
+  const user=document.getElementById('auth-user').value.trim().toLowerCase();
+  const pass=document.getElementById('auth-pass').value;
+  if(!user||user.length<3){showAuthErr('Username must be 3+ characters.');return;}
+  if(!pass||pass.length<4){showAuthErr('Password must be 4+ characters.');return;}
+  const accounts=stoGet('mb_accounts')||{};
+  const ph=hashPw(pass);
+  if(authMode==='register'){
+    if(accounts[user]){showAuthErr('Username taken — try signing in!');return;}
+    accounts[user]={ph};
+    stoSet('mb_accounts',accounts);
+    showAuthOk('Account created! Signing you in…');
+    setTimeout(()=>finishLogin(user),900);
+  } else {
+    if(!accounts[user]){showAuthErr('Account not found — register first!');return;}
+    if(accounts[user].ph!==ph){showAuthErr('Wrong password.');return;}
+    finishLogin(user);
+  }
+}
+
+function finishLogin(username){
+  currentUser={username};
+  const saved=stoGet('mb_'+username);
+  G=saved?{...defaultGame(),...saved}:defaultGame();
+  document.getElementById('auth-err').style.display='none';
+  document.getElementById('auth-ok').style.display='none';
+  document.getElementById('auth-user').value='';
+  document.getElementById('auth-pass').value='';
+  if(G.hero) goScreen('hub');
+  else goScreen('title');
+}
+
+function signOut(){
+  saveGame();
+  currentUser=null;
+  G=defaultGame();
+  goScreen('auth');
+  toast('Signed out.');
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════════════════════
+function goScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  if(id==='hub')    renderHub();
+  if(id==='train')  initTrain();
+  if(id==='shop')   renderShop();
+  if(id==='lobby')  renderLobby();
+  if(id==='title'){
+    document.getElementById('title-user').textContent='Signed in as: '+currentUser?.username;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CLASS GRID
+// ═══════════════════════════════════════════════════════
+(function buildClasses(){
+  const g=document.getElementById('class-grid');
+  g.innerHTML=CLASSES.map(c=>`
+    <div class="class-card${c.id===selectedClass?' sel':''}" id="cls-${c.id}" onclick="pickClass('${c.id}')">
+      <span class="class-emo">${c.e}</span>
+      <div class="class-name">${c.name}</div>
+      <div class="class-dsc">${c.d}</div>
+    </div>`).join('');
+  // show initial preview
+  setTimeout(()=>pickClass(selectedClass),0);
+})();
+
+function pickClass(id){
+  selectedClass=id;
+  document.querySelectorAll('.class-card').forEach(el=>el.classList.remove('sel'));
+  document.getElementById('cls-'+id).classList.add('sel');
+  // show ability preview
+  const abs=ABILITIES.filter(a=>!a.free&&a.classes.includes(id));
+  const prev=document.getElementById('class-preview');
+  if(prev){
+    prev.innerHTML=`<div class="title-font" style="font-size:.75rem;color:var(--gold);margin-bottom:8px;">Class Abilities</div>`
+      +abs.map(a=>`<span style="margin-right:10px;margin-bottom:5px;display:inline-block;">${a.icon} <span style="color:var(--text)">${a.name}</span></span>`).join('');
+  }
+}
+
+function createHero(){
+  const name=document.getElementById('hero-name').value.trim();
+  if(!name){toast('Enter a hero name!');return;}
+  G={...defaultGame(),hero:{name,classId:selectedClass}};
+  saveGame();
+  goScreen('hub');
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════════════════════
+function heroStats(){
+  if(!G.hero)return null;
+  const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  const s={...cls};s.crit=10;
+  for(const u of UPGRADES){
+    const l=G.upgrades[u.id]||0;
+    if(u.stat==='crit')s.crit+=u.amt*l; else s[u.stat]+=u.amt*l;
+  }
+  // Apply pet bonuses
+  if(G.petBonuses){
+    for(const stat in G.petBonuses){
+      if(stat==='crit')s.crit+=(G.petBonuses[stat]||0);
+      else s[stat]=(s[stat]||0)+(G.petBonuses[stat]||0);
+    }
+  }
+  s.level=Math.floor(1+G.totalCorrect/10);
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════
+//  HUB RENDER
+// ═══════════════════════════════════════════════════════
+function renderHub(){
+  if(!G.hero)return;
+  const s=heroStats();
+  const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  document.getElementById('hub-pts').textContent=G.points;
+  document.getElementById('hub-username').textContent=currentUser?.username||'';
+  const xpNeed=s.level*10, xpHave=G.totalCorrect%xpNeed;
+  document.getElementById('char-card').innerHTML=`
+    <div class="char-emo">${cls.e}</div>
+    <div class="char-info">
+      <div class="char-name-row">
+        <span class="char-name">${G.hero.name}</span>
+        <span class="char-lvl">Lv.${s.level} ${cls.name}</span>
+      </div>
+      ${bar('HP',100,'bar-hp',s.hp+'/'+s.hp)}
+      ${bar('MP',100,'bar-mp',s.mp+'/'+s.mp)}
+      ${bar('XP',Math.round(xpHave/xpNeed*100),'bar-xp',xpHave+'/'+xpNeed)}
+      <div class="mini-grid">
+        ${mini('⚔',s.atk,'ATK')}${mini('🛡',s.def,'DEF')}${mini('💨',s.spd,'SPD')}
+        ${mini('💥',s.crit+'%','CRIT')}${mini('🏆',G.wins,'WINS')}${mini('🔥',G.bestStreak,'STREAK')}
+      </div>
+      ${(G.pets&&G.pets.length>0)?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted);">PETS:</span>
+        ${G.pets.map(p=>{const egg=EGGS.find(e=>e.id===p.id);return egg?`<span title="${p.pet}" style="font-size:1.4rem;cursor:default;">${egg.hatch}</span>`:''}).join('')}
+      </div>`:''}
+    </div>`;
+}
+
+function bar(lbl,pct,cls,val){
+  return`<div class="bar-row">
+    <span class="bar-lbl">${lbl}</span>
+    <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.max(0,pct)}%"></div></div>
+    <span class="bar-val">${val}</span>
+  </div>`;
+}
+function mini(ic,v,l){
+  return`<div class="mini-stat"><div class="mini-val">${ic} ${v}</div><div class="mini-lbl">${l}</div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  MATH ENGINE
+// ═══════════════════════════════════════════════════════
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function gcd(a,b){return b===0?a:gcd(b,a%b);}
+
+function getDiff(){
+  const q=G.questionsAnswered,acc=G.totalAnswered>0?G.totalCorrect/G.totalAnswered:.5;
+  if(q<5||acc<.45)return'easy';
+  if(q<20||acc<.6)return'medium';
+  if(q<50||acc<.75)return'hard';
+  return'extreme';
+}
+
+function genQ(diffOverride){
+  const diff=diffOverride||getDiff();
+  let cat,q,ans;
+  if(diff==='easy'){
+    cat=['Arithmetic','Multiplication'][rnd(0,1)];
+    if(cat==='Arithmetic'){const a=rnd(1,20),b=rnd(1,20),op=['+','-'][rnd(0,1)];ans=op==='+'?a+b:a-b;q=`${a} ${op} ${b}`;}
+    else{const a=rnd(2,9),b=rnd(2,9);ans=a*b;q=`${a} × ${b}`;}
+  } else if(diff==='medium'){
+    cat=CATS[rnd(0,3)];
+    if(cat==='Arithmetic'){const a=rnd(10,99),b=rnd(10,99),op=['+','-'][rnd(0,1)];ans=op==='+'?a+b:a-b;q=`${a} ${op} ${b}`;}
+    else if(cat==='Division'){const b=rnd(2,12),a2=rnd(2,12);ans=a2;q=`${b*a2} ÷ ${b}`;}
+    else if(cat==='Fractions'){const a=rnd(1,5),b=rnd(2,8),c=rnd(1,5);ans=a+c;q=`${a}/${b} + ${c}/${b} = ?/${b}`;cat='Fractions';}
+    else{const a=rnd(2,10),b=rnd(1,20);ans=b;q=`${a}x = ${a*b}, x = ?`;cat='Algebra';}
+  } else if(diff==='hard'){
+    cat=CATS[rnd(0,4)];
+    if(cat==='Arithmetic'){const a=rnd(100,999),b=rnd(10,99),op=['+','-'][rnd(0,1)];ans=op==='+'?a+b:a-b;q=`${a} ${op} ${b}`;}
+    else if(cat==='Multiplication'){const a=rnd(12,25),b=rnd(12,25);ans=a*b;q=`${a} × ${b}`;}
+    else if(cat==='Division'){const b=rnd(3,15),a2=rnd(5,20);ans=a2;q=`${b*a2} ÷ ${b}`;}
+    else if(cat==='Algebra'){const a=rnd(2,8),b=rnd(1,20),x=rnd(1,15);ans=x;q=`${a}x + ${b} = ${a*x+b}, x = ?`;}
+    else{const a=rnd(2,9);ans=a*a;q=`${a}² = ?`;cat='Powers';}
+  } else {
+    cat=CATS[rnd(2,5)];
+    if(cat==='Division'){const b=rnd(7,19),a2=rnd(5,20);ans=a2;q=`${b*a2} ÷ ${b}`;}
+    else if(cat==='Algebra'){const a=rnd(2,6),b=rnd(1,15),c=rnd(2,6),d=rnd(1,20);let coef=a-c;if(coef===0)coef=1;ans=Math.round((d-b)/coef);q=`${a}x + ${b} = ${c}x + ${d}, x = ?`;}
+    else if(cat==='Powers'){const a=rnd(2,5);ans=a*a*a;q=`${a}³ = ?`;}
+    else{const a=rnd(1,9),b=rnd(2,9),c=rnd(1,9),d=rnd(2,9);const num=a*d+c*b,den=b*d,g=gcd(num,den);ans=`${num/g}/${den/g}`;q=`${a}/${b} + ${c}/${d} = ?`;cat='Fractions';}
+  }
+  return{q,ans:ans.toString(),diff,cat};
+}
+
+// ═══════════════════════════════════════════════════════
+//  TRAINING
+// ═══════════════════════════════════════════════════════
+function initTrain(){
+  currentQ=genQ();
+  renderQ();
+  document.getElementById('feedback').style.display='none';
+  updateTrainStats();
+  setTimeout(()=>document.getElementById('ans-input').focus(),100);
+}
+
+function renderQ(){
+  if(!currentQ)return;
+  document.getElementById('q-cat').textContent=currentQ.cat;
+  document.getElementById('q-text').textContent=currentQ.q;
+  document.getElementById('q-num').textContent=G.questionsAnswered+1;
+  document.getElementById('streak-n').textContent=G.streak;
+  const dm={easy:'diff-easy',medium:'diff-medium',hard:'diff-hard',extreme:'diff-extreme'};
+  const el=document.getElementById('q-diff');
+  el.className='diff-badge '+dm[currentQ.diff];
+  el.textContent=currentQ.diff[0].toUpperCase()+currentQ.diff.slice(1);
+  document.getElementById('ans-input').value='';
+}
+
+function checkAnswer(){
+  const input=document.getElementById('ans-input').value.trim();
+  if(!input||!currentQ)return;
+  const fb=document.getElementById('feedback');
+  G.totalAnswered++;G.questionsAnswered++;
+  const correct=input.replace(/\s/g,'').toLowerCase()===currentQ.ans.replace(/\s/g,'').toLowerCase();
+  if(correct){
+    G.totalCorrect++;G.streak++;
+    if(G.streak>G.bestStreak)G.bestStreak=G.streak;
+    const mult=G.streak>=3?2:1;
+    const pts=({easy:10,medium:20,hard:35,extreme:60}[currentQ.diff]||10)*mult;
+    G.points+=pts;
+    fb.className='feedback ok';
+    fb.textContent=`✓ Correct! +${pts} pts${G.streak>=3?' 🔥 x2 streak!':''}`;
+  } else {
+    G.streak=0;
+    fb.className='feedback bad';
+    fb.textContent=`✗ Wrong! Answer: ${currentQ.ans}`;
+  }
+  fb.style.display='block';
+  saveGame();
+  updateTrainStats();
+  setTimeout(()=>{
+    fb.style.display='none';
+    currentQ=genQ();
+    renderQ();
+    document.getElementById('ans-input').focus();
+  },1400);
+}
+
+function updateTrainStats(){
+  document.getElementById('t-pts').textContent=G.points;
+  document.getElementById('t-xp').textContent=G.totalCorrect;
+  document.getElementById('t-acc').textContent=G.totalAnswered>0?Math.round(G.totalCorrect/G.totalAnswered*100)+'%':'—';
+}
+
+// ═══════════════════════════════════════════════════════
+//  SHOP
+// ═══════════════════════════════════════════════════════
+function renderShop(){
+  document.getElementById('shop-pts').textContent=G.points;
+  document.getElementById('tab-ab-btn').className='btn btn-'+(shopTab==='ab'?'gold':'ghost');
+  document.getElementById('tab-st-btn').className='btn btn-'+(shopTab==='st'?'gold':'ghost');
+  const grid=document.getElementById('shop-grid');
+  if(shopTab==='ab'){
+    const classId=G.hero?.classId||'warrior';
+    const classAbs=ABILITIES.filter(a=>!a.free&&a.classes.includes(classId));
+    const cls=CLASSES.find(c=>c.id===classId);
+    grid.innerHTML=`<div style="grid-column:span 2;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:1.8rem;">${cls.e}</span>
+      <div>
+        <div class="title-font" style="font-size:.85rem;color:var(--gold);">${cls.name} Abilities</div>
+        <div style="font-size:.76rem;color:var(--muted);">These abilities are exclusive to your class</div>
+      </div>
+    </div>`
+    +classAbs.map(ab=>{
+      const owned=(G.abilities||[]).includes(ab.id);
+      const cant=G.points<ab.cost;
+      return`<div class="shop-card${owned?' owned':cant?' unaffordable':''}"
+        onclick="${owned?'':'buyAb(\''+ab.id+'\')'}">
+        <div class="shop-ico">${ab.icon}</div>
+        <div class="shop-name">${ab.name}</div>
+        <div class="shop-desc">${ab.desc}</div>
+        <div class="shop-tags">
+          ${ab.mpCost>0?`<span class="tag tag-mp">MP ${ab.mpCost}</span>`:''}
+          ${ab.cd>0?`<span class="tag tag-cd">CD ${ab.cd}</span>`:''}
+        </div>
+        <div class="shop-cost">${owned?'<span style="color:var(--green)">✓ Owned</span>':'✦ '+ab.cost+' pts'}</div>
+      </div>`;
+    }).join('');
+  } else {
+    grid.innerHTML=UPGRADES.map(u=>{
+      const lvl=G.upgrades[u.id]||0,maxed=lvl>=u.max;
+      const cost=u.cost+lvl*Math.floor(u.cost*.5);
+      const cant=G.points<cost;
+      return`<div class="shop-card${maxed?' owned':cant?' unaffordable':''}"
+        onclick="${maxed?'':'buyUpg(\''+u.id+'\')'}">
+        <div class="shop-ico">${u.icon}</div>
+        <div class="shop-name">${u.name}</div>
+        <div class="shop-desc">${u.desc}</div>
+        <div class="shop-cost">${maxed?'<span style="color:var(--green)">✓ Maxed</span>':'✦ '+cost+' pts'}</div>
+        <div class="shop-lvl">Level ${lvl}/${u.max}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function switchShopTab(t){shopTab=t;renderShop();}
+
+function buyAb(id){
+  const ab=ABILITIES.find(a=>a.id===id);
+  if((G.abilities||[]).includes(id)){toast('Already owned!');return;}
+  if(G.points<ab.cost){toast('Not enough points!');return;}
+  G.points-=ab.cost;
+  G.abilities=[...(G.abilities||[]),id];
+  saveGame();toast(`${ab.icon} ${ab.name} unlocked!`);renderShop();
+}
+
+function buyUpg(id){
+  const u=UPGRADES.find(x=>x.id===id);
+  const lvl=G.upgrades[id]||0;
+  if(lvl>=u.max){toast('Already maxed!');return;}
+  const cost=u.cost+lvl*Math.floor(u.cost*.5);
+  if(G.points<cost){toast('Not enough points!');return;}
+  G.points-=cost;G.upgrades[id]=(G.upgrades[id]||0)+1;
+  saveGame();toast(`${u.name} → Level ${lvl+1}!`);renderShop();
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOBBY
+// ═══════════════════════════════════════════════════════
+function renderLobby(){
+  document.getElementById('lobby-main').style.display='flex';
+  document.getElementById('lobby-wait').style.display='none';
+  document.getElementById('room-code-disp').textContent='- - - -';
+}
+
+function genCode(){return Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[rnd(0,31)]).join('');}
+
+function createRoom(){
+  if(!G.hero){toast('Create a hero first!');return;}
+  myRoomCode=genCode();
+  document.getElementById('room-code-disp').textContent=myRoomCode;
+  const room={code:myRoomCode,host:G.hero.name,hostClass:G.hero.classId,created:Date.now(),guest:null};
+  stoSet('mb_room_'+myRoomCode,room);
+  showWaiting(`Share code: ${myRoomCode} — waiting for opponent…`);
+  waitInterval=setInterval(()=>{
+    const r=stoGet('mb_room_'+myRoomCode);
+    if(r&&r.guest){
+      clearInterval(waitInterval);
+      localStorage.removeItem('mb_room_'+myRoomCode);
+      toast(`${r.guest} joined!`);
+      startBotBattle();
+    }
+  },1500);
+}
+
+function joinRoom(){
+  const code=document.getElementById('join-code').value.trim().toUpperCase();
+  if(code.length<4){toast('Enter a 4-character code!');return;}
+  const r=stoGet('mb_room_'+code);
+  if(!r){toast('Room not found!');return;}
+  r.guest=G.hero?.name||'Guest';
+  stoSet('mb_room_'+code,r);
+  toast(`Joining ${r.host}'s battle!`);
+  setTimeout(startBotBattle,800);
+}
+
+async function joinRandom(){
+  showWaiting('Searching for opponents…');
+  const keys=Object.keys(localStorage).filter(k=>k.startsWith('mb_room_'));
+  const open=keys.map(k=>stoGet(k)).filter(r=>r&&!r.guest&&Date.now()-r.created<120000);
+  if(open.length){
+    const r=open[0];r.guest=G.hero?.name||'Guest';
+    stoSet('mb_room_'+r.code,r);toast('Match found!');
+    setTimeout(startBotBattle,800);
+  } else {
+    setTimeout(()=>{cancelWait();toast('No rooms found — fighting a bot!');startBotBattle();},2500);
+  }
+}
+
+function showWaiting(msg){
+  document.getElementById('lobby-main').style.display='none';
+  document.getElementById('lobby-wait').style.display='block';
+  document.getElementById('wait-msg').textContent=msg;
+}
+
+function cancelWait(){
+  clearInterval(waitInterval);
+  if(myRoomCode){localStorage.removeItem('mb_room_'+myRoomCode);myRoomCode=null;}
+  document.getElementById('lobby-main').style.display='flex';
+  document.getElementById('lobby-wait').style.display='none';
+}
+
+// ═══════════════════════════════════════════════════════
+//  BATTLE ENGINE
+// ═══════════════════════════════════════════════════════
+function startBotBattle(){
+  if(!G.hero){toast('Create a hero first!');return;}
+  const s=heroStats();
+  const cls=CLASSES.find(c=>c.id===G.hero.classId);
+  const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
+  const bot={...BOTS[bi]};
+  battle={
+    player:{name:G.hero.name,e:cls.e,hp:s.hp,maxHp:s.hp,mp:s.mp,maxMp:s.mp,
+      atk:s.atk,def:s.def,crit:s.crit,shield:false,stunned:0,slow:0,cds:{}},
+    enemy:{name:bot.name,e:bot.e,hp:bot.hp,maxHp:bot.hp,mp:60,maxMp:60,
+      atk:bot.atk,def:bot.def,crit:bot.crit,shield:false,stunned:0,slow:0,cds:{},
+      patIdx:bi,moveIdx:0},
+    waiting:true,log:[],
+  };
+  document.getElementById('battle-log').innerHTML='';
+  goScreen('battle');
+  renderBattleUI();
+  blogAdd('system',`⚔️ ${battle.player.name} vs ${battle.enemy.name}! Fight!`);
+  setBattleWaiting(true);
+}
+
+function renderBattleUI(){
+  const p=battle.player,e=battle.enemy;
+  document.getElementById('b-pname').textContent=p.name;
+  document.getElementById('b-pemo').textContent=p.e;
+  document.getElementById('b-ename').textContent=e.name;
+  document.getElementById('b-eemo').textContent=e.e;
+  updateBattleHP();
+}
+
+function updateBattleHP(){
+  const p=battle.player,e=battle.enemy;
+  document.getElementById('b-pbars').innerHTML=
+    bar('HP',Math.max(0,p.hp/p.maxHp*100),'bar-hp',`${Math.max(0,p.hp)}/${p.maxHp}`)+
+    bar('MP',Math.max(0,p.mp/p.maxMp*100),'bar-mp',`${Math.max(0,p.mp)}/${p.maxMp}`);
+  document.getElementById('b-ebars').innerHTML=
+    bar('HP',Math.max(0,e.hp/e.maxHp*100),'bar-hp',`${Math.max(0,e.hp)}/${e.maxHp}`);
+  document.getElementById('b-mp').textContent=Math.max(0,p.mp);
+  document.getElementById('b-mpmax').textContent=p.maxMp;
+}
+
+function setBattleWaiting(v){
+  battle.waiting=v;
+  document.getElementById('b-turn-info').textContent=v?'Your Turn — Choose an ability!':'Enemy attacking…';
+  document.getElementById('b-turn-info').style.color=v?'var(--green)':'var(--gold)';
+  renderAbilityBtns();
+}
+
+function getPlayerAbs(){
+  const classId=G.hero?.classId||'warrior';
+  return ABILITIES.filter(a=>(a.free||(G.abilities||[]).includes(a.id))&&a.classes.includes(classId));
+}
+
+function renderAbilityBtns(){
+  const p=battle.player;
+  const abs=getPlayerAbs();
+  document.getElementById('ab-grid').innerHTML=abs.map(ab=>{
+    const cd=p.cds[ab.id]||0;
+    const noMp=ab.mpCost>0&&p.mp<ab.mpCost;
+    const dis=!battle.waiting||cd>0||noMp;
+    const tags=(ab.mpCost>0?`<span class="tag tag-mp">MP ${ab.mpCost}</span>`:'')
+      +(ab.cd>0?`<span class="tag tag-cd">CD ${ab.cd}</span>`:'')
+      +(ab.free?`<span class="tag tag-free">FREE</span>`:'');
+    return`<button class="ab-btn" ${dis?'disabled':''} onclick="useAbility('${ab.id}')">
+      <div class="ab-ico">${ab.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="ab-name">${ab.name}</div>
+        <div class="ab-desc">${ab.desc}</div>
+        <div class="shop-tags" style="margin-top:4px;">${tags}</div>
+      </div>
+      ${cd>0?`<div class="cd-overlay">${cd}</div>`:''}
+    </button>`;
+  }).join('');
+}
+
+function useAbility(id){
+  if(!battle||!battle.waiting)return;
+  const ab=ABILITIES.find(a=>a.id===id);
+  if(!ab)return;
+  const p=battle.player,e=battle.enemy;
+  const cd=p.cds[id]||0;
+  if(cd>0){toast('On cooldown!');return;}
+  if(ab.mpCost>0&&p.mp<ab.mpCost){toast('Not enough MP!');return;}
+  setBattleWaiting(false);
+  if(ab.mpCost>0)p.mp=Math.max(0,p.mp-ab.mpCost);
+  if(ab.cd>0)p.cds[id]=ab.cd;
+
+  const baseCrit=p.crit+(ab.eff==='crit'?20:0);
+  const crit=Math.random()*100<baseCrit;
+
+  if(ab.eff==='shield'||ab.eff==='smoke'){
+    p.shield=true;
+    blogAdd('player',ab.eff==='shield'?`🛡️ ${p.name} raises a shield!`:`💨 ${p.name} vanishes in smoke — next attack blocked and countered!`);
+    p.smokeCounter=ab.eff==='smoke'?ab.damage:0;
+  } else if(ab.eff==='shieldheal'){
+    p.shield=true;
+    const h=Math.floor(p.maxHp*ab.heal);p.hp=Math.min(p.maxHp,p.hp+h);
+    blogAdd('player',`🏰 ${p.name} raises a shield and heals ${h} HP!`);
+    floatDmg('+'+h,false,false);
+  } else if(ab.eff==='atk_boost'){
+    p._atkBoost=(p._atkBoost||0)+1;
+    p.atk=Math.floor(p.atk*1.3);
+    blogAdd('player',`😡 ${p.name}'s attack surges! (+30%)`);
+  } else if(ab.eff==='heal'){
+    const h=Math.floor(p.maxHp*ab.heal);p.hp=Math.min(p.maxHp,p.hp+h);
+    blogAdd('player',`💚 ${p.name} heals ${h} HP!`);
+    floatDmg('+'+h,false,false);
+  } else if(ab.eff==='divheal'){
+    // deal damage AND heal
+    let dmg=Math.max(1,Math.floor(p.atk*ab.damage)-Math.floor(e.def*.35)+rnd(-2,3));
+    if(crit)dmg=Math.floor(dmg*1.8);
+    e.hp-=dmg;
+    const h=Math.floor(p.maxHp*ab.heal);p.hp=Math.min(p.maxHp,p.hp+h);
+    blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg} dmg + healed ${h} HP!${crit?' 💥 CRIT!':''}`);
+    floatDmg(dmg,crit,false);floatDmg('+'+h,false,false);
+    document.getElementById('enemy-panel').classList.add('shake');
+    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+  } else if(ab.eff==='dot'){
+    // Apply damage-over-time for 3 turns
+    let dmg=Math.max(1,Math.floor(p.atk*ab.damage)-Math.floor(e.def*.35)+rnd(-2,2));
+    e.hp-=dmg;e.dotTurns=3;e.dotDmg=dmg;
+    blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg} dmg — will burn for ${dmg} each turn!`);
+    floatDmg(dmg,false,false);
+    document.getElementById('enemy-panel').classList.add('shake');
+    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+  } else {
+    // normal damage effects
+    let dmg=Math.max(1,Math.floor(p.atk*ab.damage)-Math.floor(e.def*.35)+rnd(-2,3));
+    if(crit)dmg=Math.floor(dmg*1.8);
+    if(ab.eff==='stun')e.stunned=1;
+    if(ab.eff==='stun2')e.stunned=2;
+    if(ab.eff==='slow'){e.slow=2;e.atk=Math.floor(e.atk*.8);}
+    if(ab.eff==='manaburn'){e.mp=Math.max(0,(e.mp||0)-30);blogAdd('system',`💙 Drained 30 MP from enemy!`);}
+    if(ab.eff==='berserk'){p.hp=Math.max(1,p.hp-20);blogAdd('system','🩸 Recoil: -20 HP');}
+    if(ab.eff==='drain'){const st=Math.floor(dmg*.5);p.hp=Math.min(p.maxHp,p.hp+st);blogAdd('player',`🩸 Drained ${st} HP!`);}
+    e.hp-=dmg;
+    blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`);
+    floatDmg(dmg,crit,false);
+    document.getElementById('enemy-panel').classList.add('shake');
+    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+  }
+
+  p.mp=Math.min(p.maxMp,p.mp+5);
+  updateBattleHP();
+  if(checkBattleEnd())return;
+  setTimeout(()=>enemyTurn(),1000);
+}
+
+function enemyTurn(){
+  const p=battle.player,e=battle.enemy;
+  // Tick player cooldowns
+  for(const k in p.cds)if(p.cds[k]>0)p.cds[k]--;
+  // DoT tick on enemy
+  if(e.dotTurns>0){
+    e.hp-=e.dotDmg;e.dotTurns--;
+    blogAdd('system',`🔥 Burning! ${e.name} takes ${e.dotDmg} damage! (${e.dotTurns} turns left)`);
+    floatDmg(e.dotDmg,false,false);
+    updateBattleHP();
+    if(checkBattleEnd())return;
+  }
+  if(e.stunned>0){e.stunned--;blogAdd('enemy',`😵 ${e.name} is stunned!`);setTimeout(()=>setBattleWaiting(true),700);return;}
+  if(e.slow>0)e.slow--;
+  const pat=BOT_PAT[Math.min(e.patIdx,BOT_PAT.length-1)];
+  const abId=pat[e.moveIdx%pat.length];e.moveIdx++;
+  const ab=ABILITIES.find(a=>a.id===abId)||ABILITIES[0];
+  if(ab.eff==='heal'){
+    const h=Math.floor(e.maxHp*.2);e.hp=Math.min(e.maxHp,e.hp+h);
+    blogAdd('enemy',`${e.e} ${e.name} heals ${h} HP!`);
+  } else {
+    const crit=Math.random()*100<e.crit;
+    let dmg=Math.max(1,Math.floor(e.atk*ab.damage)-Math.floor(p.def*.35)+rnd(-2,4));
+    if(crit)dmg=Math.floor(dmg*1.6);
+    if(p.shield){
+      const counter=p.smokeCounter||0;
+      p.shield=false;
+      blogAdd('system',`🛡️ Shield absorbed ${dmg} damage!`);
+      if(counter>0){
+        const cdmg=Math.max(1,Math.floor(p.atk*counter)+rnd(-2,2));
+        e.hp-=cdmg;
+        blogAdd('player',`💨 Smoke counter: ${cdmg} damage!`);
+        floatDmg(cdmg,false,false);
+      }
+      p.smokeCounter=0;
+      dmg=0;
+    } else {
+      p.hp-=dmg;
+      blogAdd('enemy',`${e.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`);
+      floatDmg(dmg,crit,true);
+      document.getElementById('player-panel').classList.add('shake');
+      setTimeout(()=>document.getElementById('player-panel').classList.remove('shake'),350);
+    }
+  }
+  e.mp=Math.min(e.maxMp,(e.mp||0)+5);
+  updateBattleHP();
+  if(checkBattleEnd())return;
+  setTimeout(()=>setBattleWaiting(true),700);
+}
+
+function checkBattleEnd(){
+  if(battle.enemy.hp<=0){
+    blogAdd('system',`🏆 ${battle.player.name} wins!`);
+    G.wins++;
+    // Battle gives small points — math training is the main source
+    const pts=Math.floor(10+G.wins*3);
+    G.points+=pts;
+    // Check for new eggs
+    const newEggs=[];
+    for(const egg of EGGS){
+      if(G.wins>=egg.wins&&!(G.eggs||[]).includes(egg.id)&&!(G.pets||[]).find(p=>p.id===egg.id)){
+        if(!G.eggs)G.eggs=[];
+        G.eggs.push(egg.id);
+        newEggs.push(egg);
+      }
+    }
+    saveGame();
+    setTimeout(()=>showResult(true,pts,newEggs),1000);return true;
+  }
+  if(battle.player.hp<=0){
+    blogAdd('system',`💀 ${battle.player.name} has fallen…`);
+    G.losses++;saveGame();
+    setTimeout(()=>showResult(false,0,[]),1000);return true;
+  }
+  return false;
+}
+
+function blogAdd(type,msg){
+  const log=document.getElementById('battle-log');
+  const d=document.createElement('div');
+  d.className='log-line log-'+type;d.textContent=msg;
+  log.appendChild(d);log.scrollTop=log.scrollHeight;
+}
+
+function floatDmg(dmg,crit,onPlayer){
+  const el=document.createElement('div');
+  el.className='dmg-float '+(onPlayer?'dmg-player':'dmg-enemy')+(crit?' dmg-crit':'');
+  el.textContent=(crit?'💥':'')+dmg;
+  const panel=document.getElementById(onPlayer?'player-panel':'enemy-panel');
+  const rect=panel.getBoundingClientRect();
+  el.style.left=(rect.left+rect.width/2-24)+'px';
+  el.style.top=(rect.top+20+window.scrollY)+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1200);
+}
+
+function showResult(won,pts,newEggs){
+  battle=null;
+  document.getElementById('res-ico').textContent=won?'🏆':'💀';
+  document.getElementById('res-title').textContent=won?'Victory!':'Defeated!';
+  document.getElementById('res-title').style.color=won?'var(--gold)':'var(--red)';
+
+  // Find next egg milestone
+  const nextEgg=EGGS.find(e=>G.wins<e.wins);
+  const nextEggHint=nextEgg?`<div style="font-size:.82rem;color:var(--muted);margin-top:6px;">🥚 Next egg at ${nextEgg.wins} wins (${nextEgg.wins-G.wins} to go)</div>`:'<div style="font-size:.82rem;color:var(--gold);margin-top:6px;">🌟 You\'ve earned all eggs!</div>';
+
+  document.getElementById('res-desc').innerHTML=won
+    ?`You crushed your opponent!<br><span style="font-size:.82rem;color:var(--muted);">Battles give small points — train math for big points!</span>`
+    :`Train harder and return stronger!`;
+
+  let rewardsHTML=won
+    ?`<div class="reward-badge">+${pts} pts</div><div class="reward-badge">Win #${G.wins}</div>`
+    :`<div class="reward-badge">Losses: ${G.losses}</div>`;
+
+  if(newEggs&&newEggs.length>0){
+    newEggs.forEach(egg=>{
+      rewardsHTML+=`<div class="reward-badge" style="border-color:#c084fc;color:#c084fc;background:rgba(192,132,252,.1);">🥚 ${egg.name} Earned!</div>`;
+    });
+  }
+
+  document.getElementById('res-rewards').innerHTML=rewardsHTML+nextEggHint;
+  goScreen('result');
+}
+
+function endBattle(){battle=null;}
+
+// ═══════════════════════════════════════════════════════
+//  EGGS & PETS
+// ═══════════════════════════════════════════════════════
+function openEggs(){
+  const modal=document.createElement('div');
+  modal.className='modal-bg';
+  modal.id='egg-modal';
+  modal.innerHTML=`<div class="modal" style="max-width:520px;">
+    <div class="card-title">🥚 Eggs & Pets</div>
+    <p style="font-size:.82rem;color:var(--muted);text-align:center;margin-bottom:16px;">
+      Win battles to unlock eggs — hatch them to gain a pet companion!
+    </p>
+    <div id="egg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;"></div>
+    ${(G.pets||[]).length>0?`<div style="margin-top:8px;"><div class="title-font" style="font-size:.85rem;color:var(--gold);margin-bottom:10px;">Your Pets</div><div id="pet-list" style="display:flex;flex-direction:column;gap:8px;"></div></div>`:''}
+    <br><button class="btn btn-ghost" onclick="document.getElementById('egg-modal').remove()">Close</button>
+  </div>`;
+  document.body.appendChild(modal);
+  renderEggGrid();
+  renderPetList();
+}
+
+function renderEggGrid(){
+  const grid=document.getElementById('egg-grid');
+  if(!grid)return;
+  grid.innerHTML=EGGS.map(egg=>{
+    const earned=(G.eggs||[]).includes(egg.id);
+    const hatched=(G.pets||[]).find(p=>p.id===egg.id);
+    const locked=G.wins<egg.wins&&!earned&&!hatched;
+    const winsLeft=Math.max(0,egg.wins-G.wins);
+    let statusLabel,clickable;
+    if(hatched){statusLabel=`<div style="color:var(--green);font-size:.78rem;margin-top:4px;">✓ Hatched: ${hatched.pet}</div>`;clickable=false;}
+    else if(earned){statusLabel=`<div style="color:var(--purple);font-size:.78rem;margin-top:4px;animation:pulse 1.5s infinite;">👆 Tap to hatch!</div>`;clickable=true;}
+    else if(locked){statusLabel=`<div class="egg-req">${winsLeft} more wins needed</div>`;clickable=false;}
+    else{statusLabel=`<div style="color:var(--gold);font-size:.78rem;">Ready to hatch!</div>`;clickable=true;}
+    return`<div class="egg-card${locked?' locked':hatched?' hatched':''}" 
+      ${clickable?`onclick="hatchEgg('${egg.id}')"`:''}
+      id="eggcard-${egg.id}">
+      <span class="egg-ico">${hatched?egg.hatch:egg.icon}</span>
+      <div class="egg-name">${egg.name}</div>
+      <div class="egg-req">Unlocks at ${egg.wins} wins</div>
+      <div class="pet-bonus">+${egg.bonusAmt} ${egg.bonus.toUpperCase()} when hatched</div>
+      ${statusLabel}
+    </div>`;
+  }).join('');
+}
+
+function renderPetList(){
+  const list=document.getElementById('pet-list');
+  if(!list)return;
+  (G.pets||[]).forEach(p=>{
+    const egg=EGGS.find(e=>e.id===p.id);
+    if(!egg)return;
+    list.innerHTML+=`<div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border-radius:8px;padding:10px;">
+      <span style="font-size:1.8rem;">${egg.hatch}</span>
+      <div>
+        <div class="title-font" style="font-size:.82rem;color:var(--gold);">${p.pet}</div>
+        <div style="font-size:.75rem;color:var(--green);">+${egg.bonusAmt} ${egg.bonus.toUpperCase()} bonus active</div>
+        <div style="font-size:.72rem;color:var(--muted);">${egg.desc}</div>
+      </div>
+    </div>`;
+  });
+}
+
+function hatchEgg(id){
+  const egg=EGGS.find(e=>e.id===id);
+  if(!egg)return;
+  if((G.pets||[]).find(p=>p.id===id)){toast('Already hatched!');return;}
+  if(!(G.eggs||[]).includes(id)&&G.wins<egg.wins){toast('Not enough wins!');return;}
+  // Animate the egg
+  const card=document.getElementById('eggcard-'+id);
+  if(card){const ico=card.querySelector('.egg-ico');if(ico){ico.classList.add('wobble');}}
+  setTimeout(()=>{
+    if(!G.pets)G.pets=[];
+    G.pets.push({id:egg.id,pet:egg.pet});
+    // Apply stat bonus permanently
+    if(egg.bonus==='crit'){if(!G.upgrades._petcrit)G.upgrades._petcrit=0;G.upgrades._petcrit+=egg.bonusAmt;}
+    // For other stats we store in a petBonuses object
+    if(!G.petBonuses)G.petBonuses={};
+    G.petBonuses[egg.bonus]=(G.petBonuses[egg.bonus]||0)+egg.bonusAmt;
+    saveGame();
+    toast(`🎉 ${egg.pet} hatched! +${egg.bonusAmt} ${egg.bonus.toUpperCase()}!`);
+    renderEggGrid();
+    renderPetList();
+  },500);
+}
+function openLeaderboard(){
+  if(G.hero&&currentUser){
+    stoSet('mb_lb_'+currentUser.username,{
+      name:G.hero.name,classId:G.hero.classId,wins:G.wins,
+      correct:G.totalCorrect,streak:G.bestStreak,pts:G.points
+    });
+  }
+  // Collect all leaderboard entries from localStorage
+  const entries=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('mb_lb_')){
+      try{entries.push(JSON.parse(localStorage.getItem(k)));}catch{}
+    }
+  }
+  entries.sort((a,b)=>b.pts-a.pts);
+  const html=entries.length===0?'<p style="color:var(--muted);text-align:center;padding:20px;">No entries yet — be the first!</p>'
+    :entries.slice(0,10).map((e,i)=>{
+      const cls=CLASSES.find(c=>c.id===e.classId)||CLASSES[0];
+      const medal=['🥇','🥈','🥉'][i]||('#'+(i+1));
+      return`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:1.2rem;width:26px;">${medal}</div>
+        <div style="font-size:1.5rem;">${cls.e}</div>
+        <div style="flex:1;">
+          <div class="title-font" style="font-size:.85rem;color:var(--gold);">${e.name}</div>
+          <div class="mono" style="font-size:.72rem;color:var(--muted);">W:${e.wins} ✓:${e.correct} 🔥${e.streak}</div>
+        </div>
+        <div class="mono" style="color:var(--gold);font-size:.85rem;">✦${e.pts}</div>
+      </div>`;
+    }).join('');
+  const modal=document.createElement('div');
+  modal.className='modal-bg';
+  modal.innerHTML=`<div class="modal">
+    <div class="card-title">🏆 Hall of Champions</div>
+    ${html}
+    <br>
+    <button class="btn btn-ghost" onclick="this.closest('.modal-bg').remove()">Close</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2700);
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+document.getElementById('auth-btn').dataset.tab='login';
+// Screen is already 'auth' by default
+</script>
+</body>
+</html>
