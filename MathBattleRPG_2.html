@@ -338,6 +338,25 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   .ab-grid{grid-template-columns:1fr;}
   .combatants{gap:6px;}
 }
+
+/* ── TEAM BATTLE ── */
+.team-panel{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.team-tag{font-family:'Share Tech Mono',monospace;font-size:.7rem;padding:2px 6px;border-radius:4px;font-weight:700;}
+.tag-a{background:rgba(59,130,246,.2);color:#60a5fa;}
+.tag-b{background:rgba(239,68,68,.2);color:#f87171;}
+.team-bar{background:var(--card);border-radius:10px;padding:8px 12px;margin-bottom:8px;display:flex;gap:12px;justify-content:space-around;width:100%;max-width:460px;box-sizing:border-box;}
+.team-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;}
+.team-col-title{font-family:'Share Tech Mono',monospace;font-size:.65rem;font-weight:700;margin-bottom:2px;}
+.team-fighter{font-size:.8rem;display:flex;align-items:center;gap:4px;}
+.team-fighter.active{color:var(--gold);}
+.team-fighter.defeated{opacity:.35;text-decoration:line-through;}
+/* Lobby team assignment */
+.team-assign-wrap{display:flex;gap:8px;margin:8px 0;}
+.team-col-lobby{flex:1;background:var(--bg3);border-radius:8px;padding:8px;}
+.team-col-lobby .col-title{font-family:'Share Tech Mono',monospace;font-size:.7rem;font-weight:700;text-align:center;margin-bottom:6px;}
+.team-member-row{display:flex;align-items:center;gap:6px;font-size:.82rem;margin-bottom:4px;}
+.btn-swap{font-size:.65rem;padding:2px 5px;border-radius:4px;background:var(--border);color:var(--muted);border:none;cursor:pointer;}
+.btn-swap:hover{background:var(--gold);color:#000;}
 </style>
 </head>
 <body>
@@ -542,9 +561,9 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   <div id="lobby-wait" style="display:none;text-align:center;">
     <div class="waiting-txt" id="wait-msg">Waiting…</div>
     <div id="pvp-start-wrap" style="display:none;margin-top:18px;">
-      <div id="pvp-guest-list" style="color:var(--muted);font-size:.9rem;margin-bottom:8px;"></div>
-      <button class="btn btn-red" style="width:100%;max-width:260px;" onclick="startPvpBattle()">⚔️ Start Battle!</button>
-      <div style="font-size:.75rem;color:var(--muted);margin-top:6px;">Up to 3 challengers can join!</div>
+      <div id="pvp-team-assign" style="width:100%;"></div>
+      <button class="btn btn-red" style="width:100%;max-width:260px;margin-top:8px;" onclick="startPvpBattle()">⚔️ Start Battle!</button>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Up to 3 challengers — bot fills uneven teams!</div>
     </div>
     <br>
     <button class="btn btn-ghost btn-auto btn-sm" onclick="cancelWait()">Cancel</button>
@@ -554,6 +573,7 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
 <!-- ══════════════════════ BATTLE ══════════════════════ -->
 <div id="screen-battle" class="screen" style="justify-content:flex-start;padding:14px;">
   <div class="battle-wrap">
+    <div id="team-bar" style="display:none;" class="team-bar"></div>
     <!-- combatants -->
     <div class="combatants" id="combatants-wrap">
       <div class="comb-card" id="player-panel">
@@ -782,6 +802,9 @@ let currentQ=null;
 let battle=null;
 let waitInterval=null;
 let myRoomCode=null;
+const pvpSid=Math.random().toString(36).slice(2,10);
+let pvpTeamState=null; // team relay state when isTeam=true
+let pvpTeamAssign={};
 let toastTimer=null;
 
 function defaultGame(){
@@ -1319,15 +1342,22 @@ let mqttClient=null,pvpRole=null,pvpLogShown=0,pvpPendingGuests=[];
 const MQTT_URL='wss://broker.hivemq.com:8884/mqtt';
 
 function mqttSend(data){
-  if(!mqttClient||!myRoomCode||!pvpRole)return;
-  mqttClient.publish('mb_pvp/'+myRoomCode+'/'+(pvpRole==='host'?'h':'g'),JSON.stringify(data),{qos:1});
+  if(!mqttClient||!myRoomCode)return;
+  const ch=battle?.isTeam?'t':(pvpRole==='host'?'h':'g');
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/'+ch,JSON.stringify(data),{qos:1});
 }
 function connectMqtt(onReady){
   if(!window.mqtt){toast('MQTT not loaded — refresh the page!');return;}
   mqttClient=mqtt.connect(MQTT_URL,{clientId:'mb'+Math.random().toString(36).slice(2,10),clean:true,connectTimeout:10000,reconnectPeriod:0});
   mqttClient.on('error',()=>{toast('Network error — try again!');cancelWait();});
   mqttClient.on('connect',onReady);
-  mqttClient.on('message',(topic,msg)=>{try{handlePvpMsg(JSON.parse(msg.toString()));}catch(e){}});
+  mqttClient.on('message',(topic,msg)=>{
+    try{
+      const data=JSON.parse(msg.toString());
+      if(topic.endsWith('/t')){handleTeamMsg(data);}
+      else{handlePvpMsg(data);}
+    }catch(e){}
+  });
 }
 
 function renderLobby(){
@@ -1345,7 +1375,7 @@ function createRoom(){
   connectMqtt(()=>{
     mqttClient.subscribe('mb_pvp/'+myRoomCode+'/g');
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-    const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    const hd={sid:pvpSid,name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
     mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'hostData',data:hd}),{retain:true,qos:1});
     document.getElementById('room-code-disp').textContent=myRoomCode;
@@ -1377,23 +1407,30 @@ function handlePvpMsg(data){
   if(data.type==='hostData'){
     if(pvpRole!=='guest')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-    const gd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    const gd={sid:pvpSid,name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
     mqttClient.publish('mb_pvp/'+myRoomCode+'/g',JSON.stringify({type:'guestData',data:gd}),{qos:1});
     launchPvpBattle('guest',gd,data.data);
   } else if(data.type==='guestData'){
     if(pvpRole!=='host')return;
-    if(pvpPendingGuests.length<3){pvpPendingGuests.push(data.data);}
-    const names=pvpPendingGuests.map(g=>g.e+' '+g.name).join(', ');
-    document.getElementById('pvp-guest-list').textContent='Joined: '+names;
+    if(pvpPendingGuests.length<3&&!pvpPendingGuests.find(g=>g.sid===data.data.sid)){pvpPendingGuests.push(data.data);}
     document.getElementById('pvp-start-wrap').style.display='block';
-    showWaiting(`${pvpPendingGuests.length} challenger${pvpPendingGuests.length>1?'s':''} ready — press Start!`);
+    showWaiting(`${pvpPendingGuests.length} player${pvpPendingGuests.length>1?'s':''} joined — assign teams & start!`);
+    renderTeamLobby();
   } else if(data.type==='start'){
     if(pvpRole!=='guest')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-    const gd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    const gd={sid:pvpSid,name:G.hero.name,e:cls.e,classId:G.hero.classId,
       hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
     launchPvpBattle('guest',gd,data.hostData);
+  } else if(data.type==='teamBattle'){
+    if(pvpRole!=='guest')return;
+    // Subscribe to team broadcast channel
+    mqttClient.subscribe('mb_pvp/'+myRoomCode+'/t');
+    // Normalise fighter objects
+    const norm=(f)=>({...f,maxHp:f.hp||f.maxHp,maxMp:f.mp||f.maxMp,
+      shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0,defeated:false});
+    launchTeamBattle(data.teamA.map(norm),data.teamB.map(norm));
   } else if(data.type==='move'){
     applyOpponentPvpMove(data);
   } else if(data.type==='leave'){
@@ -1403,31 +1440,264 @@ function handlePvpMsg(data){
   }
 }
 
+// Returns a bot fighter object for team fill-in
+function makeBotFighterTeam(){
+  const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
+  const b=BOTS[Math.min(bi,BOTS.length-1)];
+  return{sid:'bot_'+Math.random().toString(36).slice(2,6),name:b.name,e:b.e,
+    hp:b.hp,maxHp:b.hp,mp:60,maxMp:60,atk:b.atk,def:b.def,crit:b.crit,
+    patIdx:bi,moveIdx:0,isBot:true,defeated:false};
+}
+
+// Render the team assignment panel in the lobby (host only)
+function renderTeamLobby(){
+  const el=document.getElementById('pvp-team-assign');
+  if(!el)return;
+  // pvpTeamAssign: {[sid]: 'a'|'b'}
+  if(!window.pvpTeamAssign)pvpTeamAssign={};
+  const hostEntry={sid:pvpSid,name:G.hero.name,e:CLASSES.find(c=>c.id===G.hero.classId)?.e||'⚔️',isHost:true};
+  const allPlayers=[hostEntry,...pvpPendingGuests];
+  // auto-assign if not yet assigned
+  allPlayers.forEach((p,i)=>{if(!pvpTeamAssign[p.sid])pvpTeamAssign[p.sid]=i%2===0?'a':'b';});
+  const teamA=allPlayers.filter(p=>pvpTeamAssign[p.sid]==='a');
+  const teamB=allPlayers.filter(p=>pvpTeamAssign[p.sid]==='b');
+  const row=(p)=>`<div class="team-member-row">${p.e} ${p.name}${p.isHost?' (you)':''
+    }${!p.isHost?`<button class="btn-swap" onclick="swapTeam('${p.sid}')">⇄</button>`:''}
+    </div>`;
+  const botNote=(team)=>allPlayers.length>1&&(team==='a'?teamA.length<teamB.length:teamB.length<teamA.length)?
+    `<div class="team-member-row" style="opacity:.5;">🤖 Bot (auto-fill)</div>`:'';
+  el.innerHTML=`<div class="team-assign-wrap">
+    <div class="team-col-lobby">
+      <div class="col-title" style="color:#60a5fa;">🔵 Team A</div>
+      ${teamA.map(row).join('')}${botNote('a')}
+    </div>
+    <div class="team-col-lobby">
+      <div class="col-title" style="color:#f87171;">🔴 Team B</div>
+      ${teamB.map(row).join('')}${botNote('b')}
+    </div>
+  </div>`;
+}
+
+function swapTeam(sid){
+  if(!pvpTeamAssign)pvpTeamAssign={};
+  pvpTeamAssign[sid]=pvpTeamAssign[sid]==='a'?'b':'a';
+  renderTeamLobby();
+}
+
 function startPvpBattle(){
   if(!pvpPendingGuests.length||pvpRole!=='host')return;
   const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
-  const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
-    hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
-  mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'start',hostData:hd}),{qos:1});
-  mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
-  document.getElementById('pvp-start-wrap').style.display='none';
-  const allGuests=[...pvpPendingGuests];
-  pvpPendingGuests=[];
-  if(allGuests.length===1){
-    launchPvpBattle('host',hd,allGuests[0]);
-  } else {
-    // Multiple guests: host fights all as simultaneous enemies
-    const s2=heroStats();const cls2=CLASSES.find(c=>c.id===G.hero.classId);
-    const myData={name:G.hero.name,e:cls2.e,hp:s2.hp,maxHp:s2.hp,mp:s2.mp,maxMp:s2.mp,
-      atk:s2.atk,def:s2.def,crit:s2.crit,shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0};
-    const guestEnemies=allGuests.map(g=>({name:g.name,e:g.e,hp:g.hp,maxHp:g.hp,mp:g.mp,maxMp:g.mp,
-      atk:g.atk,def:g.def,crit:g.crit,shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0}));
-    battle={player:myData,enemies:guestEnemies,enemy:guestEnemies[0],_targetIdx:0,_pendingAbility:null,isPvp:true,waiting:false,log:[]};
-    document.getElementById('battle-log').innerHTML='';
-    goScreen('battle');renderBattleUI();
-    blogAdd('system',`⚔️ PvP! ${myData.name} vs ${allGuests.length} challengers! You go first!`);
-    setBattleWaiting(true);
+  const hd={sid:pvpSid,name:G.hero.name,e:cls.e,classId:G.hero.classId,
+    hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])],
+    maxHp:s.hp,maxMp:s.mp,shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0,defeated:false};
+  if(pvpPendingGuests.length===1){
+    // Normal 1v1
+    mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'start',hostData:hd}),{qos:1});
+    mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
+    document.getElementById('pvp-start-wrap').style.display='none';
+    const g=[...pvpPendingGuests];pvpPendingGuests=[];
+    launchPvpBattle('host',hd,g[0]);
+    return;
   }
+  // Team battle
+  if(!pvpTeamAssign)pvpTeamAssign={};
+  const hostEntry={...hd,isHost:true};
+  const allPlayers=[hostEntry,...pvpPendingGuests.map(g=>({...g,maxHp:g.hp,maxMp:g.mp,
+    shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0,defeated:false}))];
+  allPlayers.forEach((p,i)=>{if(!pvpTeamAssign[p.sid])pvpTeamAssign[p.sid]=i%2===0?'a':'b';});
+  let teamA=allPlayers.filter(p=>pvpTeamAssign[p.sid]==='a');
+  let teamB=allPlayers.filter(p=>pvpTeamAssign[p.sid]==='b');
+  if(!teamA.length||!teamB.length){toast('Each team needs at least 1 player!');renderTeamLobby();return;}
+  // Add bot to smaller team
+  if(teamA.length<teamB.length)teamA.push(makeBotFighterTeam());
+  else if(teamB.length<teamA.length)teamB.push(makeBotFighterTeam());
+  pvpPendingGuests=[];pvpTeamAssign={};
+  document.getElementById('pvp-start-wrap').style.display='none';
+  // Subscribe to team broadcast channel
+  mqttClient.subscribe('mb_pvp/'+myRoomCode+'/t');
+  // Broadcast team setup
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'teamBattle',teamA,teamB}),{qos:1});
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
+  launchTeamBattle(teamA,teamB);
+}
+
+function launchTeamBattle(teamA,teamB){
+  pvpTeamState={
+    mySid:pvpSid,
+    myTeam:teamA.find(f=>f.sid===pvpSid)?'a':'b',
+    teamA,teamB,aIdx:0,bIdx:0
+  };
+  startTeamRound();
+}
+
+function startTeamRound(){
+  const ts=pvpTeamState;
+  const fA=ts.teamA[ts.aIdx];
+  const fB=ts.teamB[ts.bIdx];
+  if(!fA||!fB){showTeamResult();return;}
+  // Determine my role in this round
+  const amIA=fA.sid===ts.mySid;
+  const amIB=fB.sid===ts.mySid;
+  const myData=amIA?fA:amIB?fB:null;
+  const oppData=amIA?fB:amIB?fA:null;
+  // Set up battle state
+  const isMorph=['druid','necromancer'].includes(G.hero?.classId);
+  // If I'm an active fighter
+  if(myData&&oppData){
+    battle={
+      player:{...myData,activeForm:isMorph?getDefaultForm(G.hero.classId):null},
+      enemies:[{...oppData}],enemy:{...oppData},_targetIdx:0,_pendingAbility:null,
+      isPvp:true,isTeam:true,waiting:false,log:[]
+    };
+    // Sync team state pointers to live battle objects
+    pvpTeamState.myBattlePlayer=battle.player;
+    pvpTeamState.myBattleEnemy=battle.enemies[0];
+    document.getElementById('battle-log').innerHTML='';
+    goScreen('battle');renderBattleUI();renderTeamBar();
+    blogAdd('system',`⚔️ Round: ${fA.e}${fA.name} (A) vs ${fB.e}${fB.name} (B)! ${amIA?'You go first!':'Opponent goes first!'}`);
+    setBattleWaiting(amIA); // Team A always goes first
+  } else {
+    // I'm spectating this round — still show battle screen with team bar
+    if(!battle){goScreen('battle');}
+    renderTeamBar();
+    blogAdd('system',`👁 ${fA.e}${fA.name} vs ${fB.e}${fB.name} — watch the fight!`);
+    setBattleWaiting(false);
+  }
+  // Host auto-runs bots
+  if(pvpRole==='host'){
+    if(fA.isBot&&!fB.isBot){setTimeout(()=>runBotTeamTurn(fA,'a'),1200);}
+    if(fB.isBot&&!fA.isBot){setTimeout(()=>runBotTeamTurn(fB,'b'),1200);}
+  }
+}
+
+function renderTeamBar(){
+  const el=document.getElementById('team-bar');
+  if(!el||!pvpTeamState)return;
+  const ts=pvpTeamState;
+  const col=(fighters,idx,label,colorClass)=>`
+    <div class="team-col">
+      <div class="team-col-title ${colorClass}">${label}</div>
+      ${fighters.map((f,i)=>`<div class="team-fighter${f.defeated?' defeated':i===idx?' active':''}">${f.e} ${f.name}${f.defeated?' 💀':i===idx?' ⚔️':' 💤'}</div>`).join('')}
+    </div>`;
+  el.innerHTML=col(ts.teamA,ts.aIdx,'🔵 Team A','tag-a')+
+    '<div style="font-size:1.4rem;align-self:center;">⚔️</div>'+
+    col(ts.teamB,ts.bIdx,'🔴 Team B','tag-b');
+  el.style.display='flex';
+}
+
+function handleTeamMsg(data){
+  if(data.type==='teamMove'){
+    // Apply the move to local team state
+    const ts=pvpTeamState;
+    if(!ts)return;
+    const fA=ts.teamA[ts.aIdx];
+    const fB=ts.teamB[ts.bIdx];
+    // Determine sender and receiver from sids
+    const senderIsA=data.from===fA.sid;
+    const sender=senderIsA?fA:fB;
+    const receiver=senderIsA?fB:fA;
+    sender.hp=data.senderHp;sender.mp=data.senderMp;sender.shield=data.senderShield;
+    receiver.hp=data.receiverHp;receiver.mp=data.receiverMp;receiver.shield=data.receiverShield;
+    receiver.stunned=data.receiverStunned||0;
+    receiver.dotTurns=data.receiverDotTurns||0;receiver.dotDmg=data.receiverDotDmg||0;
+    if(data.receiverSmokeCounter!==undefined)receiver.smokeCounter=data.receiverSmokeCounter;
+    // Sync to battle state if I'm active
+    if(battle?.isTeam){
+      if(data.from===ts.mySid){
+        // I sent this — already applied locally; just log and wait
+      } else {
+        // Opponent's move — apply to my battle state
+        battle.player.hp=data.receiverHp;battle.player.mp=data.receiverMp;
+        battle.player.shield=data.receiverShield;battle.player.stunned=data.receiverStunned||0;
+        battle.player.dotTurns=data.receiverDotTurns||0;battle.player.dotDmg=data.receiverDotDmg||0;
+        battle.enemies[0].hp=data.senderHp;battle.enemies[0].mp=data.senderMp;
+        battle.enemies[0].shield=data.senderShield;
+        battle.enemy=battle.enemies[0];
+        (data.logs||[]).forEach(l=>blogAdd(l.t||'system',l.m));
+        updateBattleHP();
+      }
+    } else {
+      // I'm spectating — just log
+      (data.logs||[]).forEach(l=>blogAdd(l.t||'system',l.m));
+    }
+    renderTeamBar();
+    // Check round end
+    if(data.roundEnd){
+      handleTeamRoundEnd(data.roundEnd);
+    } else if(data.from!==ts.mySid&&battle?.isTeam){
+      // Opponent just moved — my turn now (if I'm an active fighter)
+      const amIActive=(ts.teamA[ts.aIdx].sid===ts.mySid)||(ts.teamB[ts.bIdx].sid===ts.mySid);
+      if(amIActive){
+        if(battle.player.stunned>0){
+          battle.player.stunned--;
+          blogAdd('system',`😵 ${battle.player.name} is stunned — turn skipped!`);
+          commitPvpMove('basicatk',true);
+        } else {
+          setBattleWaiting(true);
+        }
+      }
+    }
+  }
+}
+
+function handleTeamRoundEnd(info){
+  const ts=pvpTeamState;
+  if(!ts)return;
+  // Mark defeated fighter
+  if(info.defeated==='a'){ts.teamA[ts.aIdx].defeated=true;ts.aIdx=info.aIdx;}
+  else{ts.teamB[ts.bIdx].defeated=true;ts.bIdx=info.bIdx;}
+  const aLeft=ts.teamA.filter(f=>!f.defeated).length;
+  const bLeft=ts.teamB.filter(f=>!f.defeated).length;
+  if(aLeft===0||bLeft===0){
+    setTimeout(()=>showTeamResult(),1200);
+  } else {
+    blogAdd('system',`🔄 Next fighter coming in…`);
+    if(battle){setBattleWaiting(false);}
+    setTimeout(()=>startTeamRound(),1800);
+  }
+}
+
+function showTeamResult(){
+  const ts=pvpTeamState;
+  const aAlive=ts.teamA.filter(f=>!f.defeated).length;
+  const won=ts.myTeam==='a'?aAlive>0:aAlive===0;
+  if(won){G.wins++;G.points+=Math.floor(10+G.wins*3)*2;}else G.losses++;
+  saveGame();
+  pvpTeamState=null;
+  endBattle();
+  showResult(won,won?Math.floor(10+G.wins*3)*2:0,[]);
+}
+
+// Host runs bot turn during team relay
+function runBotTeamTurn(botFighter,botTeam){
+  if(!pvpTeamState||!battle?.isTeam)return;
+  const ts=pvpTeamState;
+  const fA=ts.teamA[ts.aIdx];
+  const fB=ts.teamB[ts.bIdx];
+  const bot=botTeam==='a'?fA:fB;
+  const opp=botTeam==='a'?fB:fA;
+  if(!battle.waiting)return; // not bot's turn yet
+  // Simple bot attack
+  const pat=BOT_PAT[Math.min(bot.patIdx||0,BOT_PAT.length-1)];
+  const abId=pat[(bot.moveIdx||0)%pat.length];bot.moveIdx=(bot.moveIdx||0)+1;
+  const ab=ABILITIES.find(a=>a.id===abId)||ABILITIES[0];
+  const crit=Math.random()*100<(bot.crit||10);
+  let dmg=Math.max(1,Math.floor(bot.atk*ab.damage)-Math.floor(opp.def*.35)+rnd(-2,4));
+  if(crit)dmg=Math.floor(dmg*1.6);
+  let sHp=bot.hp,rHp=Math.max(0,opp.hp-dmg),smp=Math.min(bot.maxMp,(bot.mp||60)+5);
+  const logs=[{t:'enemy',m:`${bot.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`}];
+  let roundEnd=null;
+  if(rHp<=0){
+    opp.defeated=true;
+    const nextAIdx=botTeam==='b'?ts.aIdx+1:ts.aIdx;
+    const nextBIdx=botTeam==='a'?ts.bIdx+1:ts.bIdx;
+    roundEnd={defeated:botTeam==='a'?'b':'a',aIdx:nextAIdx,bIdx:nextBIdx};
+  }
+  const msg={type:'teamMove',from:bot.sid,senderHp:sHp,senderMp:smp,senderShield:false,
+    receiverHp:rHp,receiverMp:opp.mp||60,receiverShield:false,receiverStunned:0,
+    receiverDotTurns:0,receiverDotDmg:0,receiverSmokeCounter:0,logs,roundEnd};
+  mqttClient.publish('mb_pvp/'+myRoomCode+'/t',JSON.stringify(msg),{qos:1});
+  handleTeamMsg(msg); // apply locally too
 }
 
 function launchPvpBattle(role,myData,oppData){
@@ -1455,6 +1725,7 @@ function launchPvpBattle(role,myData,oppData){
 }
 
 function applyOpponentPvpMove(data){
+  if(battle?.isTeam)return; // team moves handled by handleTeamMsg
   if(!battle?.isPvp)return;
   // data is from opponent's perspective: senderHp=their new HP, receiverHp=our new HP
   battle.player.hp=data.receiverHp;
@@ -1497,10 +1768,10 @@ function commitPvpMove(id,isStunSkip){
   // Tick CDs
   for(const k in p.cds){p.cds[k]--;if(p.cds[k]<=0)delete p.cds[k];}
   if(isStunSkip){
-    mqttSend({type:'move',logs:[],senderHp:p.hp,senderMp:p.mp,senderAtk:p.atk,
+    mqttSend({type:battle?.isTeam?'teamMove':'move',from:pvpSid,logs:[],senderHp:p.hp,senderMp:p.mp,senderAtk:p.atk,
       senderStunned:0,senderShield:p.shield,receiverHp:e.hp,receiverMp:e.mp,
       receiverStunned:e.stunned,receiverShield:e.shield,receiverSmokeCounter:e.smokeCounter||0,
-      receiverDotTurns:e.dotTurns||0,receiverDotDmg:e.dotDmg||0,winner:null});return;
+      receiverDotTurns:e.dotTurns||0,receiverDotDmg:e.dotDmg||0,winner:null,roundEnd:null});return;
   }
   if(ab.mpCost>0)p.mp=Math.max(0,p.mp-ab.mpCost);
   if(ab.cd>0)p.cds[id]=ab.cd;
@@ -1545,13 +1816,29 @@ function commitPvpMove(id,isStunSkip){
   let winner=null;
   if(nEHp<=0)winner='sender';
   if(nPHp<=0)winner='receiver';
-  mqttSend({type:'move',logs,senderHp:nPHp,senderMp:nPMp,senderAtk:nPAtk,
+  let teamRoundEnd=null;
+  if(battle?.isTeam&&winner){
+    const ts=pvpTeamState;
+    if(ts){
+      const iAmA=ts.teamA[ts.aIdx]?.sid===ts.mySid;
+      if(winner==='sender'){// I won, opponent (receiver) defeated
+        if(iAmA){ts.teamB[ts.bIdx].defeated=true;teamRoundEnd={defeated:'b',aIdx:ts.aIdx,bIdx:ts.bIdx+1};}
+        else{ts.teamA[ts.aIdx].defeated=true;teamRoundEnd={defeated:'a',aIdx:ts.aIdx+1,bIdx:ts.bIdx};}
+      } else {// I lost
+        if(iAmA){ts.teamA[ts.aIdx].defeated=true;teamRoundEnd={defeated:'a',aIdx:ts.aIdx+1,bIdx:ts.bIdx};}
+        else{ts.teamB[ts.bIdx].defeated=true;teamRoundEnd={defeated:'b',aIdx:ts.aIdx,bIdx:ts.bIdx+1};}
+      }
+    }
+  }
+  mqttSend({type:battle?.isTeam?'teamMove':'move',from:pvpSid,logs,
+    senderHp:nPHp,senderMp:nPMp,senderAtk:nPAtk,
     senderStunned:0,senderShield:p.shield,receiverHp:nEHp,receiverMp:nEMp,receiverAtk:nEAtk,
     receiverStunned:nEStun,receiverShield:nEShield,receiverSmokeCounter:nESmoke,
-    receiverDotTurns:nEDotT,receiverDotDmg:nEDotD,winner});
+    receiverDotTurns:nEDotT,receiverDotDmg:nEDotD,winner,roundEnd:teamRoundEnd});
   logs.forEach(l=>blogAdd(l.t||'system',l.m));
   battle.player.hp=nPHp;battle.player.mp=nPMp;battle.enemy.hp=nEHp;updateBattleHP();
-  if(winner){
+  if(teamRoundEnd){setTimeout(()=>handleTeamRoundEnd(teamRoundEnd),1300);}
+  else if(winner&&!battle?.isTeam){
     const won=winner==='sender';const pts=won?Math.floor(10+(G.wins+1)*3):0;
     if(won){G.wins++;G.points+=pts;}else G.losses++;
     saveGame();setTimeout(()=>{endBattle();showResult(won,pts,[]);},1200);
@@ -1662,6 +1949,7 @@ function updateBattleHP(){
   });
   document.getElementById('b-mp').textContent=Math.max(0,p.mp);
   document.getElementById('b-mpmax').textContent=p.maxMp;
+  if(battle?.isTeam)renderTeamBar();
 }
 
 function setBattleWaiting(v){
@@ -1981,6 +2269,8 @@ function endBattle(){
   }
   pvpRole=null;myRoomCode=null;
   battle=null;
+  pvpTeamState=null;
+  pvpTeamAssign={};
 }
 
 // ── TRANSFORM SYSTEM ──
