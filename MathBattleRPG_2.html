@@ -1634,7 +1634,7 @@ function renderBattleUI(){
   });
   const tBar=document.getElementById('transform-bar');
   const isMorph=['druid','necromancer'].includes(G.hero?.classId);
-  if(tBar){tBar.style.display=isMorph&&!battle.isPvp?'flex':'none';}
+  if(tBar){tBar.style.display=isMorph?'flex':'none';}
   if(isMorph&&!battle.isPvp){
     const fd=document.getElementById('current-form-display');
     if(fd){const cf=battle.player.activeForm||getDefaultForm(G.hero.classId);
@@ -2027,7 +2027,8 @@ function transformTo(formId){
   blogAdd('player',`${form.icon} ${battle.player.name} transforms into ${form.name} form!`);
   // costs the player's turn
   setBattleWaiting(false);
-  setTimeout(()=>runEnemyTurns(),1000);
+  if(battle.isPvp){commitPvpMove('basicatk',true);}
+  else{setTimeout(()=>runEnemyTurns(),1000);}
 }
 
 // ═══════════════════════════════════════════════════════
