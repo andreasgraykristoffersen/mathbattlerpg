@@ -203,6 +203,9 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
 .combatants{display:flex;gap:10px;align-items:stretch;}
 .comb-card{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;}
 .comb-card.enemy{border-color:rgba(224,53,53,.25);}
+#enemies-wrap .comb-card{flex:1;min-width:90px;max-width:160px;}
+#enemies-wrap .comb-card.dead-enemy{opacity:.35;pointer-events:none;}
+#enemies-wrap .comb-card.targeted{box-shadow:0 0 0 3px var(--gold);}
 .comb-name{font-family:'Cinzel',serif;font-size:.82rem;margin-bottom:8px;}
 .comb-name.p{color:var(--blue);}
 .comb-name.e{color:var(--red);text-align:right;}
@@ -539,8 +542,9 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
   <div id="lobby-wait" style="display:none;text-align:center;">
     <div class="waiting-txt" id="wait-msg">Waiting…</div>
     <div id="pvp-start-wrap" style="display:none;margin-top:18px;">
-      <div id="pvp-guest-info" style="color:var(--muted);font-size:.95rem;margin-bottom:12px;"></div>
+      <div id="pvp-guest-list" style="color:var(--muted);font-size:.9rem;margin-bottom:8px;"></div>
       <button class="btn btn-red" style="width:100%;max-width:260px;" onclick="startPvpBattle()">⚔️ Start Battle!</button>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:6px;">Up to 3 challengers can join!</div>
     </div>
     <br>
     <button class="btn btn-ghost btn-auto btn-sm" onclick="cancelWait()">Cancel</button>
@@ -551,19 +555,16 @@ label.lbl{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--m
 <div id="screen-battle" class="screen" style="justify-content:flex-start;padding:14px;">
   <div class="battle-wrap">
     <!-- combatants -->
-    <div class="combatants">
+    <div class="combatants" id="combatants-wrap">
       <div class="comb-card" id="player-panel">
         <div class="comb-name p" id="b-pname">Hero</div>
         <div class="comb-emo" id="b-pemo">⚔️</div>
         <div id="b-pbars"></div>
       </div>
       <div class="vs-col"><div class="vs-txt">VS</div></div>
-      <div class="comb-card enemy" id="enemy-panel">
-        <div class="comb-name e" id="b-ename">Enemy</div>
-        <div class="comb-emo" id="b-eemo">👹</div>
-        <div id="b-ebars"></div>
-      </div>
+      <div id="enemies-wrap" style="display:flex;gap:6px;flex:1;flex-wrap:wrap;justify-content:center;"></div>
     </div>
+    <div id="target-select" style="display:none;background:var(--panel);border-radius:10px;padding:10px;margin-bottom:8px;text-align:center;"></div>
     <!-- log -->
     <div class="battle-log" id="battle-log"></div>
     <!-- abilities -->
@@ -1314,7 +1315,7 @@ function buyUpg(id){
 // ═══════════════════════════════════════════════════════
 //  LOBBY + REAL-TIME PvP (MQTT — works across devices!)
 // ═══════════════════════════════════════════════════════
-let mqttClient=null,pvpRole=null,pvpLogShown=0,pvpPendingGuest=null;
+let mqttClient=null,pvpRole=null,pvpLogShown=0,pvpPendingGuests=[];
 const MQTT_URL='wss://broker.hivemq.com:8884/mqtt';
 
 function mqttSend(data){
@@ -1382,10 +1383,11 @@ function handlePvpMsg(data){
     launchPvpBattle('guest',gd,data.data);
   } else if(data.type==='guestData'){
     if(pvpRole!=='host')return;
-    pvpPendingGuest=data.data;
-    document.getElementById('pvp-guest-info').textContent=data.data.e+' '+data.data.name+' has joined!';
+    if(pvpPendingGuests.length<3){pvpPendingGuests.push(data.data);}
+    const names=pvpPendingGuests.map(g=>g.e+' '+g.name).join(', ');
+    document.getElementById('pvp-guest-list').textContent='Joined: '+names;
     document.getElementById('pvp-start-wrap').style.display='block';
-    showWaiting('Opponent is ready! Press Start when you are!');
+    showWaiting(`${pvpPendingGuests.length} challenger${pvpPendingGuests.length>1?'s':''} ready — press Start!`);
   } else if(data.type==='start'){
     if(pvpRole!=='guest')return;
     const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
@@ -1402,15 +1404,30 @@ function handlePvpMsg(data){
 }
 
 function startPvpBattle(){
-  if(!pvpPendingGuest||pvpRole!=='host')return;
+  if(!pvpPendingGuests.length||pvpRole!=='host')return;
   const s=heroStats();const cls=CLASSES.find(c=>c.id===G.hero.classId);
   const hd={name:G.hero.name,e:cls.e,classId:G.hero.classId,
     hp:s.hp,mp:s.mp,atk:s.atk,def:s.def,crit:s.crit,abilities:[...(G.abilities||[])]};
   mqttClient.publish('mb_pvp/'+myRoomCode+'/h',JSON.stringify({type:'start',hostData:hd}),{qos:1});
   mqttClient.publish('mb_pvp/'+myRoomCode+'/h','',{retain:true,qos:1});
   document.getElementById('pvp-start-wrap').style.display='none';
-  launchPvpBattle('host',hd,pvpPendingGuest);
-  pvpPendingGuest=null;
+  const allGuests=[...pvpPendingGuests];
+  pvpPendingGuests=[];
+  if(allGuests.length===1){
+    launchPvpBattle('host',hd,allGuests[0]);
+  } else {
+    // Multiple guests: host fights all as simultaneous enemies
+    const s2=heroStats();const cls2=CLASSES.find(c=>c.id===G.hero.classId);
+    const myData={name:G.hero.name,e:cls2.e,hp:s2.hp,maxHp:s2.hp,mp:s2.mp,maxMp:s2.mp,
+      atk:s2.atk,def:s2.def,crit:s2.crit,shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0};
+    const guestEnemies=allGuests.map(g=>({name:g.name,e:g.e,hp:g.hp,maxHp:g.hp,mp:g.mp,maxMp:g.mp,
+      atk:g.atk,def:g.def,crit:g.crit,shield:false,stunned:0,slow:0,cds:{},dotTurns:0,dotDmg:0,smokeCounter:0}));
+    battle={player:myData,enemies:guestEnemies,enemy:guestEnemies[0],_targetIdx:0,_pendingAbility:null,isPvp:true,waiting:false,log:[]};
+    document.getElementById('battle-log').innerHTML='';
+    goScreen('battle');renderBattleUI();
+    blogAdd('system',`⚔️ PvP! ${myData.name} vs ${allGuests.length} challengers! You go first!`);
+    setBattleWaiting(true);
+  }
 }
 
 function launchPvpBattle(role,myData,oppData){
@@ -1421,9 +1438,14 @@ function launchPvpBattle(role,myData,oppData){
       atk:myData.atk,def:myData.def,crit:myData.crit,shield:false,stunned:0,slow:0,cds:{},
       dotTurns:0,dotDmg:0,smokeCounter:0,
       activeForm:isMorph?getDefaultForm(G.hero.classId):null},
+    enemies:[{name:oppData.name,e:oppData.e,hp:oppData.hp,maxHp:oppData.hp,mp:oppData.mp,maxMp:oppData.mp,
+      atk:oppData.atk,def:oppData.def,crit:oppData.crit,shield:false,stunned:0,slow:0,cds:{},
+      dotTurns:0,dotDmg:0,smokeCounter:0}],
     enemy:{name:oppData.name,e:oppData.e,hp:oppData.hp,maxHp:oppData.hp,mp:oppData.mp,maxMp:oppData.mp,
       atk:oppData.atk,def:oppData.def,crit:oppData.crit,shield:false,stunned:0,slow:0,cds:{},
       dotTurns:0,dotDmg:0,smokeCounter:0},
+    _targetIdx:0,
+    _pendingAbility:null,
     isPvp:true,waiting:false,log:[]
   };
   document.getElementById('battle-log').innerHTML='';
@@ -1561,64 +1583,83 @@ function startBotBattle(){
   const numBots=rnd(1,3);
   const bi=G.wins<2?0:G.wins<5?1:G.wins<10?2:G.wins<20?3:4;
   const bots=Array.from({length:numBots},(_,i)=>{
-    const idx=Math.min(bi+i,BOTS.length-1);
-    return{...BOTS[idx],patIdx:idx};
+    const b=BOTS[Math.min(bi+i,BOTS.length-1)];
+    return{name:b.name,e:b.e,hp:b.hp,maxHp:b.hp,mp:60,maxMp:60,
+      atk:b.atk,def:b.def,crit:b.crit,shield:false,stunned:0,slow:0,cds:{},
+      patIdx:Math.min(bi+i,BOTS.length-1),moveIdx:0,dotTurns:0,dotDmg:0,smokeCounter:0};
   });
-  launchBotWave(bots,1,numBots,null);
+  launchBotBattle(bots);
 }
 
-function launchBotWave(botQueue,waveNum,totalWaves,prevPlayer){
+function launchBotBattle(bots){
   if(!G.hero)return;
   const s=heroStats();
   const cls=CLASSES.find(c=>c.id===G.hero.classId);
   const isMorphClass=['druid','necromancer'].includes(G.hero.classId);
-  const bot=botQueue[0];
-  const pHp=prevPlayer?Math.min(s.hp,prevPlayer.hp+Math.floor(s.hp*.3)):s.hp;
-  const pMp=prevPlayer?Math.min(s.mp,prevPlayer.mp+Math.floor(s.mp*.4)):s.mp;
-  const startForm=prevPlayer?.activeForm||(isMorphClass?getDefaultForm(G.hero.classId):null);
   battle={
-    player:{name:G.hero.name,e:cls.e,hp:pHp,maxHp:s.hp,mp:pMp,maxMp:s.mp,
+    player:{name:G.hero.name,e:cls.e,hp:s.hp,maxHp:s.hp,mp:s.mp,maxMp:s.mp,
       atk:s.atk,def:s.def,crit:s.crit,shield:false,stunned:0,slow:0,cds:{},
-      dotTurns:0,dotDmg:0,smokeCounter:0,activeForm:startForm},
-    enemy:{name:bot.name,e:bot.e,hp:bot.hp,maxHp:bot.hp,mp:60,maxMp:60,
-      atk:bot.atk,def:bot.def,crit:bot.crit,shield:false,stunned:0,slow:0,cds:{},
-      patIdx:bot.patIdx,moveIdx:0,dotTurns:0,dotDmg:0,smokeCounter:0},
-    waiting:true,log:[],botQueue:botQueue.slice(1),waveNum,totalWaves,
+      dotTurns:0,dotDmg:0,smokeCounter:0,
+      activeForm:isMorphClass?getDefaultForm(G.hero.classId):null},
+    enemies:bots,
+    enemy:bots[0],
+    _targetIdx:0,
+    _pendingAbility:null,
+    waiting:true,log:[],isPvp:false
   };
   document.getElementById('battle-log').innerHTML='';
-  if(waveNum===1)goScreen('battle');
+  goScreen('battle');
   renderBattleUI();
-  const wStr=totalWaves>1?` (Bot ${waveNum}/${totalWaves})`:'';
-  blogAdd('system',`⚔️ ${battle.player.name} vs ${bot.name}${wStr}! Fight!`);
+  const n=bots.length;
+  blogAdd('system',`⚔️ ${battle.player.name} vs ${n} enemy${n>1?'s':''}! Fight!`);
   setBattleWaiting(true);
 }
 
 function renderBattleUI(){
-  const p=battle.player,e=battle.enemy;
+  const p=battle.player,es=battle.enemies||[battle.enemy];
   document.getElementById('b-pname').textContent=p.name;
   document.getElementById('b-pemo').textContent=p.e;
-  const waveLabel=battle.totalWaves>1?`${e.name} 🌊${battle.waveNum}/${battle.totalWaves}`:e.name;
-  document.getElementById('b-ename').textContent=waveLabel;
-  document.getElementById('b-eemo').textContent=e.e;
+  // Render enemy cards
+  const wrap=document.getElementById('enemies-wrap');
+  wrap.innerHTML=es.map((e,i)=>`
+    <div class="comb-card enemy${e.hp<=0?' dead-enemy':''}${i===battle._targetIdx?' targeted':''}" id="enemy-card-${i}" onclick="selectEnemyTarget(${i})">
+      <div class="comb-name e">${e.name}</div>
+      <div class="comb-emo" style="font-size:${es.length>1?'1.6rem':'2rem'}">${e.e}</div>
+      <div id="b-ebars-${i}"></div>
+    </div>`).join('');
+  // Render HP bars for each enemy
+  es.forEach((e,i)=>{
+    const el=document.getElementById('b-ebars-'+i);
+    if(el)el.innerHTML=bar('HP',Math.max(0,e.hp/e.maxHp*100),'bar-hp',`${Math.max(0,e.hp)}/${e.maxHp}`);
+  });
   const tBar=document.getElementById('transform-bar');
-  if(tBar){
-    const isMorph=['druid','necromancer'].includes(G.hero?.classId);
-    tBar.style.display=isMorph?'flex':'none';
-    if(isMorph&&p.activeForm){
-      const form=(FORMS[G.hero.classId]||[]).find(f=>f.id===p.activeForm);
-      document.getElementById('current-form-display').textContent=form?form.icon+' '+form.name+' Form':'';
+  const isMorph=['druid','necromancer'].includes(G.hero?.classId);
+  if(tBar){tBar.style.display=isMorph&&!battle.isPvp?'flex':'none';}
+  if(isMorph&&!battle.isPvp){
+    const fd=document.getElementById('current-form-display');
+    if(fd){const cf=battle.player.activeForm||getDefaultForm(G.hero.classId);
+      const fm=(FORMS[G.hero.classId]||[]).find(f=>f.id===cf);
+      fd.textContent=fm?`${fm.icon} ${fm.name} Form`:'';
     }
   }
   updateBattleHP();
 }
 
 function updateBattleHP(){
-  const p=battle.player,e=battle.enemy;
+  const p=battle.player;
   document.getElementById('b-pbars').innerHTML=
     bar('HP',Math.max(0,p.hp/p.maxHp*100),'bar-hp',`${Math.max(0,p.hp)}/${p.maxHp}`)+
     bar('MP',Math.max(0,p.mp/p.maxMp*100),'bar-mp',`${Math.max(0,p.mp)}/${p.maxMp}`);
-  document.getElementById('b-ebars').innerHTML=
-    bar('HP',Math.max(0,e.hp/e.maxHp*100),'bar-hp',`${Math.max(0,e.hp)}/${e.maxHp}`);
+  const es=battle.enemies||[battle.enemy];
+  es.forEach((e,i)=>{
+    const el=document.getElementById('b-ebars-'+i);
+    if(el)el.innerHTML=bar('HP',Math.max(0,e.hp/e.maxHp*100),'bar-hp',`${Math.max(0,e.hp)}/${e.maxHp}`);
+    const card=document.getElementById('enemy-card-'+i);
+    if(card){
+      card.classList.toggle('dead-enemy',e.hp<=0);
+      card.classList.toggle('targeted',i===battle._targetIdx);
+    }
+  });
   document.getElementById('b-mp').textContent=Math.max(0,p.mp);
   document.getElementById('b-mpmax').textContent=p.maxMp;
 }
@@ -1672,15 +1713,62 @@ function renderAbilityBtns(){
   }).join('');
 }
 
+function selectEnemyTarget(idx){
+  const es=battle.enemies||[battle.enemy];
+  if(!es[idx]||es[idx].hp<=0)return;
+  battle._targetIdx=idx;
+  battle.enemy=es[idx];
+  updateBattleHP();
+  if(battle._pendingAbility){
+    const id=battle._pendingAbility;
+    battle._pendingAbility=null;
+    document.getElementById('target-select').style.display='none';
+    executeAbility(id);
+  }
+}
+
+function showTargetSelect(abilityId){
+  const es=battle.enemies||[battle.enemy];
+  const alive=es.map((e,i)=>({e,i})).filter(({e})=>e.hp>0);
+  if(alive.length===1){selectEnemyTarget(alive[0].i);battle._pendingAbility=abilityId;selectEnemyTarget(alive[0].i);return;}
+  battle._pendingAbility=abilityId;
+  document.getElementById('target-select').innerHTML=
+    `<div style="color:var(--gold);font-size:.9rem;margin-bottom:8px;">⚔️ Choose target:</div>`+
+    alive.map(({e,i})=>`<button class="btn btn-sm btn-ghost btn-auto" style="margin:3px;" onclick="selectEnemyTarget(${i})">${e.e} ${e.name} <span style="color:var(--muted);font-size:.8rem;">${e.hp}HP</span></button>`).join('');
+  document.getElementById('target-select').style.display='block';
+}
+
 function useAbility(id){
   if(!battle||!battle.waiting)return;
   if(battle.isPvp){commitPvpMove(id);return;}
   const ab=ABILITIES.find(a=>a.id===id);
   if(!ab)return;
-  const p=battle.player,e=battle.enemy;
+  const p=battle.player;
   const cd=p.cds[id]||0;
   if(cd>0){toast('On cooldown!');return;}
   if(ab.mpCost>0&&p.mp<ab.mpCost){toast('Not enough MP!');return;}
+  // If attack ability and multiple enemies alive, show targeting
+  const es=battle.enemies||[battle.enemy];
+  const aliveEnemies=es.filter(e=>e.hp>0);
+  const isAttack=!['shield','smoke','shieldheal','atk_boost','heal'].includes(ab.eff);
+  if(isAttack&&aliveEnemies.length>1){
+    showTargetSelect(id);
+    return;
+  }
+  // auto-target first alive enemy
+  if(aliveEnemies.length>0){
+    const idx=es.findIndex(e=>e.hp>0);
+    battle._targetIdx=idx;
+    battle.enemy=es[idx];
+  }
+  executeAbility(id);
+}
+
+function executeAbility(id){
+  const ab=ABILITIES.find(a=>a.id===id);
+  if(!ab)return;
+  const p=battle.player,e=battle.enemy;
+  const cd=p.cds[id]||0;
   setBattleWaiting(false);
   if(ab.mpCost>0)p.mp=Math.max(0,p.mp-ab.mpCost);
   if(ab.cd>0)p.cds[id]=ab.cd;
@@ -1713,16 +1801,16 @@ function useAbility(id){
     const h=Math.floor(p.maxHp*ab.heal);p.hp=Math.min(p.maxHp,p.hp+h);
     blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg} dmg + healed ${h} HP!${crit?' 💥 CRIT!':''}`);
     floatDmg(dmg,crit,false);floatDmg('+'+h,false,false);
-    document.getElementById('enemy-panel').classList.add('shake');
-    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+    const eCard=document.getElementById('enemy-card-'+battle._targetIdx);
+    if(eCard){eCard.classList.add('shake');setTimeout(()=>eCard.classList.remove('shake'),350);}
   } else if(ab.eff==='dot'){
     // Apply damage-over-time for 3 turns
     let dmg=Math.max(1,Math.floor(p.atk*ab.damage)-Math.floor(e.def*.35)+rnd(-2,2));
     e.hp-=dmg;e.dotTurns=3;e.dotDmg=dmg;
     blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg} dmg — will burn for ${dmg} each turn!`);
     floatDmg(dmg,false,false);
-    document.getElementById('enemy-panel').classList.add('shake');
-    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+    const eCard=document.getElementById('enemy-card-'+battle._targetIdx);
+    if(eCard){eCard.classList.add('shake');setTimeout(()=>eCard.classList.remove('shake'),350);}
   } else {
     // normal damage effects
     let dmg=Math.max(1,Math.floor(p.atk*ab.damage)-Math.floor(e.def*.35)+rnd(-2,3));
@@ -1736,78 +1824,77 @@ function useAbility(id){
     e.hp-=dmg;
     blogAdd('player',`${p.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`);
     floatDmg(dmg,crit,false);
-    document.getElementById('enemy-panel').classList.add('shake');
-    setTimeout(()=>document.getElementById('enemy-panel').classList.remove('shake'),350);
+    const eCard=document.getElementById('enemy-card-'+battle._targetIdx);
+    if(eCard){eCard.classList.add('shake');setTimeout(()=>eCard.classList.remove('shake'),350);}
   }
 
   p.mp=Math.min(p.maxMp,p.mp+5);
   updateBattleHP();
   if(checkBattleEnd())return;
-  setTimeout(()=>enemyTurn(),1000);
+  setTimeout(()=>runEnemyTurns(),600);
 }
 
-function enemyTurn(){
-  const p=battle.player,e=battle.enemy;
-  // Tick player cooldowns
+function runEnemyTurns(){
+  const p=battle.player;
   for(const k in p.cds)if(p.cds[k]>0)p.cds[k]--;
-  // DoT tick on enemy
-  if(e.dotTurns>0){
-    e.hp-=e.dotDmg;e.dotTurns--;
-    blogAdd('system',`🔥 Burning! ${e.name} takes ${e.dotDmg} damage! (${e.dotTurns} turns left)`);
-    floatDmg(e.dotDmg,false,false);
-    updateBattleHP();
-    if(checkBattleEnd())return;
-  }
-  if(e.stunned>0){e.stunned--;blogAdd('enemy',`😵 ${e.name} is stunned!`);setTimeout(()=>setBattleWaiting(true),700);return;}
-  if(e.slow>0)e.slow--;
-  const pat=BOT_PAT[Math.min(e.patIdx,BOT_PAT.length-1)];
-  const abId=pat[e.moveIdx%pat.length];e.moveIdx++;
-  const ab=ABILITIES.find(a=>a.id===abId)||ABILITIES[0];
-  if(ab.eff==='heal'){
-    const h=Math.floor(e.maxHp*.2);e.hp=Math.min(e.maxHp,e.hp+h);
-    blogAdd('enemy',`${e.e} ${e.name} heals ${h} HP!`);
-  } else {
-    const crit=Math.random()*100<e.crit;
-    let dmg=Math.max(1,Math.floor(e.atk*ab.damage)-Math.floor(p.def*.35)+rnd(-2,4));
-    if(crit)dmg=Math.floor(dmg*1.6);
-    if(p.shield){
-      const counter=p.smokeCounter||0;
-      p.shield=false;
-      blogAdd('system',`🛡️ Shield absorbed ${dmg} damage!`);
-      if(counter>0){
-        const cdmg=Math.max(1,Math.floor(p.atk*counter)+rnd(-2,2));
-        e.hp-=cdmg;
-        blogAdd('player',`💨 Smoke counter: ${cdmg} damage!`);
-        floatDmg(cdmg,false,false);
-      }
-      p.smokeCounter=0;
-      dmg=0;
-    } else {
-      p.hp-=dmg;
-      blogAdd('enemy',`${e.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`);
-      floatDmg(dmg,crit,true);
-      document.getElementById('player-panel').classList.add('shake');
-      setTimeout(()=>document.getElementById('player-panel').classList.remove('shake'),350);
+  const es=battle.enemies||[battle.enemy];
+  const aliveEnemies=es.filter(e=>e.hp>0);
+  let idx=0;
+  function nextTurn(){
+    if(idx>=aliveEnemies.length){
+      if(checkBattleEnd())return;
+      setTimeout(()=>setBattleWaiting(true),400);
+      return;
     }
+    const e=aliveEnemies[idx++];
+    // DoT tick
+    if(e.dotTurns>0){
+      e.hp=Math.max(0,e.hp-e.dotDmg);e.dotTurns--;
+      blogAdd('system',`🔥 ${e.name} burns ${e.dotDmg}!`);
+      updateBattleHP();
+      if(e.hp<=0){setTimeout(nextTurn,500);return;}
+    }
+    if(e.stunned>0){e.stunned--;blogAdd('enemy',`😵 ${e.name} is stunned!`);setTimeout(nextTurn,500);return;}
+    if(e.slow>0)e.slow--;
+    const pat=BOT_PAT[Math.min(e.patIdx,BOT_PAT.length-1)];
+    const abId=pat[e.moveIdx%pat.length];e.moveIdx++;
+    const ab=ABILITIES.find(a=>a.id===abId)||ABILITIES[0];
+    if(ab.eff==='heal'){
+      const h=Math.floor(e.maxHp*.2);e.hp=Math.min(e.maxHp,e.hp+h);
+      blogAdd('enemy',`${e.e} ${e.name} heals ${h} HP!`);
+    } else {
+      const crit=Math.random()*100<e.crit;
+      let dmg=Math.max(1,Math.floor(e.atk*ab.damage)-Math.floor(p.def*.35)+rnd(-2,4));
+      if(crit)dmg=Math.floor(dmg*1.6);
+      if(p.shield){
+        const counter=p.smokeCounter||0;p.shield=false;
+        blogAdd('system',`🛡️ Shield absorbed ${e.name}'s ${dmg} damage!`);
+        if(counter>0){const cd=Math.max(1,Math.floor(p.atk*counter)+rnd(-2,2));e.hp=Math.max(0,e.hp-cd);blogAdd('player',`💨 Counter: ${cd} to ${e.name}!`);}
+        p.smokeCounter=0;dmg=0;
+      } else {
+        p.hp=Math.max(0,p.hp-dmg);
+        blogAdd('enemy',`${e.e} ${ab.icon} ${ab.name}: ${dmg}${crit?' 💥 CRIT!':''}`);
+        floatDmg(dmg,crit,true);
+        document.getElementById('player-panel').classList.add('shake');
+        setTimeout(()=>document.getElementById('player-panel').classList.remove('shake'),350);
+      }
+    }
+    e.mp=Math.min(e.maxMp,(e.mp||0)+5);
+    updateBattleHP();
+    if(p.hp<=0){checkBattleEnd();return;}
+    setTimeout(nextTurn,650);
   }
-  e.mp=Math.min(e.maxMp,(e.mp||0)+5);
-  updateBattleHP();
-  if(checkBattleEnd())return;
-  setTimeout(()=>setBattleWaiting(true),700);
+  setTimeout(nextTurn,300);
 }
 
 function checkBattleEnd(){
-  if(battle.enemy.hp<=0){
-    if(battle.botQueue&&battle.botQueue.length>0){
-      const nextQ=battle.botQueue,nextW=battle.waveNum+1,total=battle.totalWaves,prev=battle.player;
-      blogAdd('system',`✅ ${battle.enemy.name} defeated! Wave ${battle.waveNum}/${total} done! (+30% HP restore)`);
-      setTimeout(()=>launchBotWave(nextQ,nextW,total,prev),1500);
-      return true;
-    }
+  const es=battle.enemies||[battle.enemy];
+  const allDead=es.every(e=>e.hp<=0);
+  if(allDead){
     blogAdd('system',`🏆 ${battle.player.name} wins!`);
     G.wins++;
-    const waves=battle.totalWaves||1;
-    const pts=Math.floor(10+G.wins*3)*waves;
+    const n=es.length;
+    const pts=Math.floor(10+G.wins*3)*n;
     G.points+=pts;
     const newEggs=[];
     for(const egg of EGGS){
@@ -1816,13 +1903,20 @@ function checkBattleEnd(){
       }
     }
     saveGame();
-    setTimeout(()=>showResult(true,pts,newEggs,waves),1000);return true;
+    setTimeout(()=>showResult(true,pts,newEggs,n),1000);
+    return true;
   }
   if(battle.player.hp<=0){
     blogAdd('system',`💀 ${battle.player.name} has fallen…`);
     G.losses++;saveGame();
-    const waveFell=battle.waveNum||1,total=battle.totalWaves||1;
-    setTimeout(()=>showResult(false,0,[],total,waveFell),1000);return true;
+    const n=es.length;
+    setTimeout(()=>showResult(false,0,[],n),1000);
+    return true;
+  }
+  // If current target is dead, auto-switch
+  if(battle.enemy.hp<=0){
+    const aliveIdx=es.findIndex(e=>e.hp>0);
+    if(aliveIdx>=0){battle._targetIdx=aliveIdx;battle.enemy=es[aliveIdx];updateBattleHP();}
   }
   return false;
 }
@@ -1838,7 +1932,13 @@ function floatDmg(dmg,crit,onPlayer){
   const el=document.createElement('div');
   el.className='dmg-float '+(onPlayer?'dmg-player':'dmg-enemy')+(crit?' dmg-crit':'');
   el.textContent=(crit?'💥':'')+dmg;
-  const panel=document.getElementById(onPlayer?'player-panel':'enemy-panel');
+  let panel;
+  if(onPlayer){
+    panel=document.getElementById('player-panel');
+  } else {
+    panel=document.getElementById('enemy-card-'+(battle?._targetIdx||0))||document.getElementById('enemies-wrap');
+  }
+  if(!panel){document.body.appendChild(el);setTimeout(()=>el.remove(),1200);return;}
   const rect=panel.getBoundingClientRect();
   el.style.left=(rect.left+rect.width/2-24)+'px';
   el.style.top=(rect.top+20+window.scrollY)+'px';
@@ -1846,7 +1946,7 @@ function floatDmg(dmg,crit,onPlayer){
   setTimeout(()=>el.remove(),1200);
 }
 
-function showResult(won,pts,newEggs,totalWaves=1,waveFell=0){
+function showResult(won,pts,newEggs,numEnemies=1){
   battle=null;
   document.getElementById('res-ico').textContent=won?'🏆':'💀';
   document.getElementById('res-title').textContent=won?'Victory!':'Defeated!';
@@ -1855,14 +1955,13 @@ function showResult(won,pts,newEggs,totalWaves=1,waveFell=0){
   const nextEgg=EGGS.find(e=>G.wins<e.wins);
   const nextEggHint=nextEgg?`<div style="font-size:.82rem;color:var(--muted);margin-top:6px;">🥚 Next egg at ${nextEgg.wins} wins (${nextEgg.wins-G.wins} to go)</div>`:'<div style="font-size:.82rem;color:var(--gold);margin-top:6px;">🌟 You\'ve earned all eggs!</div>';
 
-  const gauntletStr=totalWaves>1?` — ${totalWaves}-bot gauntlet!`:'';
-  const fallStr=(!won&&totalWaves>1&&waveFell)?`<br><span style="font-size:.82rem;color:var(--muted);">Fell at bot ${waveFell}/${totalWaves}</span>`:'';
+  const gauntletStr=numEnemies>1?` — ${numEnemies}-enemy battle!`:'';
   document.getElementById('res-desc').innerHTML=won
     ?`You crushed your opponent${gauntletStr}<br><span style="font-size:.82rem;color:var(--muted);">Battles give small points — train math for big points!</span>`
-    :`Train harder and return stronger!${fallStr}`;
+    :`Train harder and return stronger!`;
 
   let rewardsHTML=won
-    ?`<div class="reward-badge">+${pts} pts</div><div class="reward-badge">Win #${G.wins}</div>${totalWaves>1?`<div class="reward-badge" style="border-color:var(--gold);color:var(--gold);">🌊 ${totalWaves}-Bot Clear!</div>`:''}`
+    ?`<div class="reward-badge">+${pts} pts</div><div class="reward-badge">Win #${G.wins}</div>${numEnemies>1?`<div class="reward-badge" style="border-color:var(--gold);color:var(--gold);">⚔️ ${numEnemies}-Enemy Clear!</div>`:''}`
     :`<div class="reward-badge">Losses: ${G.losses}</div>`;
 
   if(newEggs&&newEggs.length>0){
@@ -1928,7 +2027,7 @@ function transformTo(formId){
   blogAdd('player',`${form.icon} ${battle.player.name} transforms into ${form.name} form!`);
   // costs the player's turn
   setBattleWaiting(false);
-  setTimeout(()=>enemyTurn(),1000);
+  setTimeout(()=>runEnemyTurns(),1000);
 }
 
 // ═══════════════════════════════════════════════════════
